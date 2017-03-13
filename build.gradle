@@ -1,0 +1,36 @@
+group 'org.dragons'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'java'
+
+sourceCompatibility = JavaVersion.VERSION_1_8
+targetCompatibility = JavaVersion.VERSION_1_8
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    neo4jVersion = "3.2.0-alpha05"
+}
+
+dependencies {
+    compile group: 'org.neo4j', name: 'neo4j-kernel', version: neo4jVersion
+    compile group: 'org.neo4j', name: 'neo4j-lucene-index', version: neo4jVersion
+    compile group: 'org.neo4j', name: 'neo4j-cypher', version: neo4jVersion
+    compile group: 'org.neo4j', name: 'neo4j-kernel', version: neo4jVersion, classifier: 'tests'
+    compile group: 'org.neo4j', name: 'neo4j-io', version: neo4jVersion, classifier: 'tests'
+    compile group: 'junit', name: 'junit', version: '4.12'
+    compile group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.22'
+
+    //testCompile 'org.codehaus.groovy:groovy-all:2.4.6'
+    //testCompile group: 'org.neo4j.contrib', name: 'neo4j-spock-extension', version: '0.7.4'
+    //testCompile "org.neo4j.driver:neo4j-java-driver:$neo4jClientVersion"
+}
+
+test {
+    systemProperties 'user.language': 'en', 'user.country': 'US'
+    testLogging {
+        exceptionFormat = 'full'
+    }
+}
