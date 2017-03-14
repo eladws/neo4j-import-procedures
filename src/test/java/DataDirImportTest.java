@@ -12,7 +12,7 @@ import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
 /**
- * Created by User on 09/03/2017.
+ * Created by eladw on 09/03/2017.
  */
 public class DataDirImportTest {
 
