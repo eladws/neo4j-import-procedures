@@ -43,14 +43,14 @@ public class ImportProcedures {
 
             String line;
 
-            BlockingQueue<String[]> workerQueue = new ArrayBlockingQueue<>((int) (batchSize * 2));
+            BlockingQueue<String> workerQueue = new ArrayBlockingQueue<>((int) (batchSize * 2));
 
             while ((line = br.readLine()) != null) {
 
                 if (propertiesMap == null) {
 
                     //first row: build property map, and spawn a worker
-                    propertiesMap = buildPropertyTypeMap(line.split(","));
+                    propertiesMap = buildPropertyTypeMap(line);
 
                     spawnNodesBatchWorker(graphDatabaseAPI, workerQueue, batchSize, label, propertiesMap);
 
@@ -63,11 +63,11 @@ public class ImportProcedures {
                     }
                 }
 
-                workerQueue.put(line.split(","));
+                workerQueue.put(line);
 
             }
 
-            workerQueue.put(new String[]{POISON});
+            workerQueue.put(POISON);
 
         } catch (Exception e) {
 
@@ -95,14 +95,14 @@ public class ImportProcedures {
 
             String line;
 
-            BlockingQueue<String[]> workerQueue = new ArrayBlockingQueue<>((int) (batchSize * 2));
+            BlockingQueue<String> workerQueue = new ArrayBlockingQueue<>((int) (batchSize * 2));
 
             while ((line = br.readLine()) != null) {
 
                 if (propertiesMap == null) {
 
                     //first row: build property map, and spawn a worker
-                    propertiesMap = buildPropertyTypeMap(line.split(","));
+                    propertiesMap = buildPropertyTypeMap(line);
 
                     spawnRelsBatchWorker(graphDatabaseAPI,
                                             workerQueue,
@@ -125,11 +125,11 @@ public class ImportProcedures {
                     }
                 }
 
-                workerQueue.put(line.split(","));
+                workerQueue.put(line);
 
             }
 
-            workerQueue.put(new String[]{POISON});
+            workerQueue.put(POISON);
 
         } catch (Exception e) {
 
@@ -151,7 +151,7 @@ public class ImportProcedures {
         }
 
         //1. name of nodes files must start with [node]_[label]
-        //2. name of relationship files must start with [rel]_[label]_[fromLabel]_[toLabel]_[matchOnPropertyFrom]_[matchOnPropertyTo]
+        //2. name of relationship files must start with [rel]_[label]_[fromLabel]_[toLabel]_[matchOnPropertyFrom]_[matchOnPropertyTo]_[matchPropCol]_[matchPropEndCol]
 
         String[] nodeFiles = dir.list((dir1, name) -> name.startsWith("node"));
 
@@ -182,12 +182,12 @@ public class ImportProcedures {
 
     }
 
-    private Map<String, String> buildPropertyTypeMap(String[] header) {
+    private Map<String, String> buildPropertyTypeMap(String header) {
 
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
 
         for (String token :
-                header) {
+                header.split(",")) {
             if (token.contains(":")) {
                 String[] split = token.split(":");
                 map.put(split[0], split[1]);
@@ -200,17 +200,17 @@ public class ImportProcedures {
 
     }
 
-    private void spawnNodesBatchWorker(GraphDatabaseAPI api, BlockingQueue<String[]> queue, long batchSize, String label, Map<String, String> propMap) {
+    private void spawnNodesBatchWorker(GraphDatabaseAPI api, BlockingQueue<String> queue, long batchSize, String label, Map<String, String> propMap) {
 
         new Thread(() -> {
 
             Transaction tx = null;
-            String[] nextRow;
+            String nextRow;
             long opsCount = 0;
 
             try {
 
-                while(!(nextRow = queue.take())[0].equals(POISON)) {
+                while(!(nextRow = queue.take()).equals(POISON)) {
 
                     if (opsCount % batchSize == 0) {
 
@@ -221,20 +221,24 @@ public class ImportProcedures {
 
                         tx = api.beginTx();
 
-                        log.warn("Rolling over transaction at opscount " + opsCount);
+                        log.debug("Rolling over transaction at ops count " + opsCount);
 
                     }
 
+                    String[] rowTokens = nextRow.split(",");
+
                     //create the node, and set all properties
                     Node node = api.createNode(Label.label(label));
+
                     int idx = 0;
+
                     for (String propName :
                             propMap.keySet()
                             ) {
                         if(propMap.get(propName).equals("int")) {
-                            node.setProperty(propName, Integer.valueOf(nextRow[idx]));
+                            node.setProperty(propName, Integer.valueOf(rowTokens[idx]));
                         } else {
-                            node.setProperty(propName, nextRow[idx]);
+                            node.setProperty(propName, rowTokens[idx]);
                         }
                         idx++;
                     }
@@ -244,7 +248,7 @@ public class ImportProcedures {
 
             } catch (InterruptedException e) {
 
-                log.error("Failed parsing row for node type %s: ", label);
+                log.error("Failed parsing node type %s: ", label);
 
             } finally {
                 if (tx != null) {
@@ -259,7 +263,7 @@ public class ImportProcedures {
     }
 
     private void spawnRelsBatchWorker(GraphDatabaseAPI api,
-                                      BlockingQueue<String[]> queue,
+                                      BlockingQueue<String> queue,
                                       long batchSize,
                                       String label,
                                       String startNodeLabel,
@@ -273,14 +277,14 @@ public class ImportProcedures {
         new Thread(() -> {
 
             Transaction tx = null;
-            String[] nextRow;
+            String nextRow;
             long opsCount = 0;
 
             try {
 
                 Object[] propsArr = propMap.keySet().toArray();
 
-                while(!(nextRow = queue.take())[0].equals(POISON)) {
+                while(!(nextRow = queue.take()).equals(POISON)) {
 
                     if (opsCount % batchSize == 0) {
 
@@ -291,55 +295,65 @@ public class ImportProcedures {
 
                         tx = api.beginTx();
 
-                        log.warn("Rolling over transaction at opscount ",opsCount);
+                        log.debug("Rolling over transaction at ops count ",opsCount);
 
                     }
 
-                    //Find endpoints and create the relationship
-                    Node startNode = api.findNode(Label.label(startNodeLabel),
-                                                    startMatchProp,
-                                                    propMap.get(propsArr[startMatchPropCol]).equals("int") ?
-                                                                        Integer.valueOf(nextRow[startMatchPropCol]) :
-                                                                        nextRow[startMatchPropCol]);
+                    String[] rowTokens = nextRow.split(",");
 
-                    if(startNode == null) {
-                        log.warn("Failed creating relationship. Start node [:%s {%s=%s}] could not be found.",
-                                startNodeLabel,startMatchProp,nextRow[startMatchPropCol]);
-                        continue;
-                    }
+                    try {
 
-                    Node endNode = api.findNode(Label.label(endNodeLabel), endMatchProp,
-                                                propMap.get(propsArr[endMatchPropCol]).equals("int") ?
-                                                        Integer.valueOf(nextRow[startMatchPropCol]) :
-                                                        nextRow[endMatchPropCol]);
+                        //Find endpoints and create the relationship
+                        Node startNode = api.findNode(Label.label(startNodeLabel),
+                                startMatchProp,
+                                propMap.get(propsArr[startMatchPropCol]).equals("int") ?
+                                        Integer.valueOf(rowTokens[startMatchPropCol]) :
+                                        rowTokens[startMatchPropCol]);
 
-                    if(endNode == null) {
-                        log.warn("Failed creating relationship. Start node [:%s {%s=%s}] could not be found.",
-                                endNodeLabel,endMatchProp,nextRow[endMatchPropCol]);
-                        continue;
-                    }
-
-                    Relationship rel = startNode.createRelationshipTo(endNode, RelationshipType.withName(label));
-                    int idx = 0;
-                    for (String propName :
-                            propMap.keySet()
-                            ) {
-                        if(idx != startMatchPropCol && idx != endMatchPropCol) {
-                            if (propMap.get(propName).equals("int")) {
-                                rel.setProperty(propName, Integer.valueOf(nextRow[idx]));
-                            } else {
-                                rel.setProperty(propName, nextRow[idx]);
-                            }
+                        if (startNode == null) {
+                            log.warn("Failed creating relationship. Start node [:%s {%s=%s}] could not be found.",
+                                    startNodeLabel, startMatchProp, rowTokens[startMatchPropCol]);
+                            continue;
                         }
-                        idx++;
-                    }
 
-                    opsCount ++;
+                        Node endNode = api.findNode(Label.label(endNodeLabel), endMatchProp,
+                                propMap.get(propsArr[endMatchPropCol]).equals("int") ?
+                                        Integer.valueOf(rowTokens[startMatchPropCol]) :
+                                        rowTokens[endMatchPropCol]);
+
+                        if (endNode == null) {
+                            log.warn("Failed creating relationship. Start node [:%s {%s=%s}] could not be found.",
+                                    endNodeLabel, endMatchProp, rowTokens[endMatchPropCol]);
+                            continue;
+                        }
+
+                        Relationship rel = startNode.createRelationshipTo(endNode, RelationshipType.withName(label));
+                        int idx = 0;
+                        for (String propName :
+                                propMap.keySet()
+                                ) {
+                            if (idx != startMatchPropCol && idx != endMatchPropCol) {
+                                if (propMap.get(propName).equals("int")) {
+                                    rel.setProperty(propName, Integer.valueOf(rowTokens[idx]));
+                                } else {
+                                    rel.setProperty(propName, rowTokens[idx]);
+                                }
+                            }
+                            idx++;
+                        }
+
+                        opsCount++;
+                    }
+                    catch (MultipleFoundException mfe) {
+                        log.warn("Failed parsing row of relationship type %s. " +
+                                 "\n\t\tMultiple nodes found for relationship endpoints." +
+                                 "\n\t\trow: %s", label, nextRow);
+                    }
                 }
 
             } catch (InterruptedException e) {
 
-                log.error("Failed parsing row for relationship type %s: ", label);
+                log.error("Failed parsing relationship type %s: ", label);
 
             } finally {
                 if (tx != null) {

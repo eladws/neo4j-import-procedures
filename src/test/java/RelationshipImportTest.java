@@ -37,16 +37,16 @@ public class RelationshipImportTest {
         // setup
 
         // when
-        graphDatabaseService.execute("create (:dragon {name: 'John'})");
-        graphDatabaseService.execute("create (:dragon {name: 'Jane'})");
-        graphDatabaseService.execute("call org.dragons.neo4j.procs.loadRelationshipFile('C:/data/rels.txt', 'fire', 'dragon', 'dragon', 'name', 'name',0,1,null, false, 2)");
+        graphDatabaseService.execute("create (:dragon {name: 'Dragonov'})");
+        graphDatabaseService.execute("create (:dragon {name: 'Dragonite'})");
+        graphDatabaseService.execute("call org.dragons.neo4j.procs.loadRelationshipFile('C:/data/rels_fire.csv', 'fire', 'dragon', 'dragon', 'name', 'name',0,1,null, false, 2)");
 
         // then
         final Result result = graphDatabaseService.execute("match (:dragon)-[:fire]->(:dragon) return count(*) as n");
 
         Object n = Iterators.single(result.columnAs("n"));
 
-        Assert.assertEquals(1, ((Long)n).intValue());
+        Assert.assertEquals(20, ((Long)n).intValue());
 
     }
 
