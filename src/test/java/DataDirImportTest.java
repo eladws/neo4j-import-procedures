@@ -37,20 +37,8 @@ public class DataDirImportTest {
         // setup
 
         // when
-        graphDatabaseService.execute("call org.dragons.neo4j.procs.importDataDirectory('C:/data', 2)");
 
         // then
-        final Result result = graphDatabaseService.execute("match (:person) return count(*) as n");
-
-        Object n1 = Iterators.single(result.columnAs("n"));
-
-        final Result res = graphDatabaseService.execute("match (:dragon) return count(*) as n");
-
-        Object n2 = Iterators.single(res.columnAs("n"));
-
-        Assert.assertEquals(6,((Long)n1).intValue());
-
-        Assert.assertEquals(2, ((Long)n2).intValue());
 
     }
 

@@ -12,6 +12,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -29,15 +30,18 @@ public class ImportProcedures {
     @Context
     public Log log;
 
-    @Procedure(mode = Mode.WRITE)
+    @Procedure(mode = Mode.SCHEMA)
     public void loadNodesFile(@Name("File path") String file,
                               @Name("Node label") String label,
-                              @Name("Properties names and types in the same order as they appear in the file." +
-                                    "If this value is null, the first row will be parsed as the header.") Map<String, String> propertiesMap,
+                              @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
+                                    "If this value is null, the first row will be parsed as the header.") String header,
                               @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
-                              @Name("batch size for a single transaction") long batchSize) {
+                              @Name("batch size for a single transaction") long batchSize,
+                              @Name("array of property names to index on")List<String> indexedProps) {
 
         try {
+
+            log.info("Importing nodes of type %s from %s started.", label, file);
 
             BufferedReader br = new BufferedReader(new FileReader(file));
 
@@ -45,20 +49,31 @@ public class ImportProcedures {
 
             BlockingQueue<String> workerQueue = new ArrayBlockingQueue<>((int) (batchSize * 2));
 
+            Map<String, String> propertyTypeMap;
+
+            int rowCount = 0;
+
             while ((line = br.readLine()) != null) {
 
-                if (propertiesMap == null) {
+                ++rowCount;
 
-                    //first row: build property map, and spawn a worker
-                    propertiesMap = buildPropertyTypeMap(line);
+                if(rowCount == 1) {
 
-                    spawnNodesBatchWorker(graphDatabaseAPI, workerQueue, batchSize, label, propertiesMap);
+                    if (header == null) {
 
-                    continue;
+                        //first row: build property map, and spawn a worker
+                        propertyTypeMap = buildPropertyTypeMap(line);
+                        skipFirst = true;
 
-                } else {
-                    if (skipFirst) {
-                        skipFirst = false;
+                    } else {
+                        propertyTypeMap = buildPropertyTypeMap(header);
+                    }
+
+                    log.info("Using Properties map:\n %s", printPropMap(propertyTypeMap));
+
+                    spawnNodesBatchWorker(graphDatabaseAPI, workerQueue, batchSize, label, propertyTypeMap);
+
+                    if(skipFirst) {
                         continue;
                     }
                 }
@@ -69,25 +84,34 @@ public class ImportProcedures {
 
             workerQueue.put(POISON);
 
-        } catch (Exception e) {
+            log.info("Finished loading %s lines.",String.valueOf(rowCount));
 
+            if(indexedProps != null && indexedProps.size() > 0) {
+                log.info("Starting indexing process...");
+                indexedProps.forEach(s -> graphDatabaseAPI.execute(String.format("CREATE INDEX ON :%s(%s)",label,s)));
+                log.info("Indexing process finished.");
+            }
+
+        } catch (Exception e) {
+            log.error("Failed with exception: %s",e.getMessage());
         }
 
     }
 
-    @Procedure(mode = Mode.WRITE)
+
+    @Procedure(mode = Mode.SCHEMA)
     public void loadRelationshipFile(@Name("File path") String file,
                                      @Name("Relationship label") String label,
                                      @Name("Start node label") String startLabel,
                                      @Name("End node label") String endNLabel,
-                                     @Name("Start node match property") String startMatchProp,
-                                     @Name("End node match property") String endMatchProp,
-                                     @Name("Start node match property column index in the file or the property map") long startMatchPropColIdx,
-                                     @Name("End node match property column index in the file or the property map") long endMatchPropColIdx,
-                                     @Name("Properties names and types in the same order as they appear in the file." +
-                                           "If this value is null, the first row will be parsed as the header.") Map<String, String> propertiesMap,
+                                     @Name("Start node property for matching") String startNodeProp,
+                                     @Name("End node property for matching") String endNodeProp,
+                                     @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
+                                           "If this value is null, the first row will be parsed as the header." +
+                                           "The start and end constraints must be named 'start' and 'end' exactly.") String header,
                                      @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
-                                     @Name("batch size for a single transaction") long batchSize) {
+                                     @Name("batch size for a single transaction") long batchSize,
+                                     @Name("Whether to create indices on nodes properties to speed-up relationship creation") Boolean index) {
 
         try {
 
@@ -97,30 +121,55 @@ public class ImportProcedures {
 
             BlockingQueue<String> workerQueue = new ArrayBlockingQueue<>((int) (batchSize * 2));
 
+            Map<String, String> propertyTypeMap;
+
+            int rowCount = 0;
+
             while ((line = br.readLine()) != null) {
 
-                if (propertiesMap == null) {
+                ++rowCount;
 
-                    //first row: build property map, and spawn a worker
-                    propertiesMap = buildPropertyTypeMap(line);
+                if(rowCount == 1) {
+
+                    if (header == null) {
+
+                        //first row: build property map
+                        propertyTypeMap = buildPropertyTypeMap(line);
+                        skipFirst = true;
+
+                    } else {
+
+                        propertyTypeMap = buildPropertyTypeMap(header);
+
+                    }
+
+                    log.info("Using Properties map:\n %s", printPropMap(propertyTypeMap));
+
+                    if(index) {
+
+                        log.info("Starting index creation...\n");
+
+                        graphDatabaseAPI.execute(String.format("CREATE INDEX ON :%s(%s)",startLabel,startNodeProp));
+
+                        log.info("Created index :%s(%s)\n",startLabel,startNodeProp);
+
+                        graphDatabaseAPI.execute(String.format("CREATE INDEX ON :%s(%s)",endNLabel,endNodeProp));
+
+                        log.info("Created index :%s(%s)\n",endNLabel,endNodeProp);
+
+                    }
 
                     spawnRelsBatchWorker(graphDatabaseAPI,
-                                            workerQueue,
-                                            batchSize,
-                                            label,
-                                            startLabel,
-                                            endNLabel,
-                                            startMatchProp,
-                                            endMatchProp,
-                                            (int)startMatchPropColIdx,
-                                            (int)endMatchPropColIdx,
-                                            propertiesMap);
+                            workerQueue,
+                            batchSize,
+                            label,
+                            startLabel,
+                            endNLabel,
+                            startNodeProp,
+                            endNodeProp,
+                            propertyTypeMap);
 
-                    continue;
-
-                } else {
-                    if (skipFirst) {
-                        skipFirst = false;
+                    if(skipFirst) {
                         continue;
                     }
                 }
@@ -131,53 +180,52 @@ public class ImportProcedures {
 
             workerQueue.put(POISON);
 
-        } catch (Exception e) {
+            log.info("Finished loading %s lines.",String.valueOf(rowCount));
 
+        } catch (Exception e) {
+            log.error("Failed with exception: %s",e.getMessage());
         }
 
     }
 
-    @Procedure(mode = Mode.WRITE)
-    public void importDataDirectory(@Name("data directory") String dataDir,
-                                    @Name("batch size for a single transaction") long batchSize) {
+    @Procedure(mode=Mode.SCHEMA)
+    public void loadNodesFolder(@Name("Directory path") String dir,
+                                @Name("File prefix") String prefix,
+                                @Name("Node label") String label,
+                                @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
+                                        "If this value is null, the first row will be parsed as the header.") String header,
+                                @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
+                                @Name("batch size for a single transaction") long batchSize,
+                                @Name("array of property names to index on")List<String> indexedProps) {
 
-        log.info("Starting CSV import process. from: %s, starting at: %d, number of rows: %d, batch size: %d", dataDir, batchSize);
-
-        File dir = new File(dataDir);
-
-        if (!dir.exists()) {
-            log.error("CSV import failed. Could not find data directory: %s", dataDir);
-            return;
+        File directory = new File(dir);
+        File[] files = directory.listFiles((dir1, name) -> name.startsWith(prefix));
+        for (File file :
+                files) {
+            loadNodesFile(file.getPath(), label, header, skipFirst, batchSize,indexedProps);
         }
+    }
 
-        //1. name of nodes files must start with [node]_[label]
-        //2. name of relationship files must start with [rel]_[label]_[fromLabel]_[toLabel]_[matchOnPropertyFrom]_[matchOnPropertyTo]_[matchPropCol]_[matchPropEndCol]
+    @Procedure(mode=Mode.SCHEMA)
+    public void loadRelationshipsFolder(@Name("Directory path") String dir,
+                                        @Name("File prefix") String prefix,
+                                        @Name("Node label") String label,
+                                        @Name("Start node label") String startLabel,
+                                        @Name("End node label") String endNLabel,
+                                        @Name("Start node property for matching") String startNodeProp,
+                                        @Name("End node property for matching") String endNodeProp,
+                                        @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
+                                                "If this value is null, the first row will be parsed as the header." +
+                                                "The start and end constraints must be named start and end.") String header,
+                                        @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
+                                        @Name("batch size for a single transaction") long batchSize,
+                                        @Name("Whether to create indices on nodes properties to speed-up relationship creation") Boolean index) {
 
-        String[] nodeFiles = dir.list((dir1, name) -> name.startsWith("node"));
-
-        String[] relFiles = dir.list((dir12, name) -> name.startsWith("rel"));
-
-        for (String nodeFile :
-                nodeFiles) {
-
-            try {
-
-                //extract node label
-                String[] details = nodeFile.split("_");
-
-                String label = details[1].replace(".csv","");
-
-                loadNodesFile(dataDir + "/" + nodeFile, label, null, false,batchSize);
-
-            } catch (Exception e) {
-                log.error("Error while parsing node file %s: %s",nodeFile, e.getMessage());
-            }
-
-        }
-
-        for (String relFile :
-                relFiles) {
-            //TODO: spawn a new worker to enter these relationships
+        File directory = new File(dir);
+        File[] files = directory.listFiles((dir1, name) -> name.startsWith(prefix));
+        for (File file :
+                files) {
+            loadRelationshipFile(file.getPath(), label, startLabel, endNLabel, startNodeProp, endNodeProp, header, skipFirst, batchSize, index);
         }
 
     }
@@ -200,7 +248,19 @@ public class ImportProcedures {
 
     }
 
-    private void spawnNodesBatchWorker(GraphDatabaseAPI api, BlockingQueue<String> queue, long batchSize, String label, Map<String, String> propMap) {
+    private String printPropMap(Map<String, String> propertiesMap) {
+        StringBuilder sb = new StringBuilder();
+
+        propertiesMap.forEach((k,v)-> sb.append(String.format("%s: %s\n",k,v)));
+
+        return sb.toString();
+    }
+
+    private void spawnNodesBatchWorker(GraphDatabaseAPI api,
+                                       BlockingQueue<String> queue,
+                                       long batchSize,
+                                       String label,
+                                       Map<String, String> propMap) {
 
         new Thread(() -> {
 
@@ -221,32 +281,39 @@ public class ImportProcedures {
 
                         tx = api.beginTx();
 
-                        log.debug("Rolling over transaction at ops count " + opsCount);
+                        log.info("Rolling over transaction at ops count " + opsCount);
 
                     }
 
                     String[] rowTokens = nextRow.split(",");
 
-                    //create the node, and set all properties
-                    Node node = api.createNode(Label.label(label));
+                    try {
 
-                    int idx = 0;
+                        //create the node, and set all properties
+                        Node node = api.createNode(Label.label(label));
 
-                    for (String propName :
-                            propMap.keySet()
-                            ) {
-                        if(propMap.get(propName).equals("int")) {
-                            node.setProperty(propName, Integer.valueOf(rowTokens[idx]));
-                        } else {
-                            node.setProperty(propName, rowTokens[idx]);
+                        int idx = 0;
+
+                        for (String propName :
+                                propMap.keySet()
+                                ) {
+                            if (propMap.get(propName).equals("int")) {
+                                node.setProperty(propName, Integer.valueOf(rowTokens[idx]));
+                            } else {
+                                node.setProperty(propName, rowTokens[idx]);
+                            }
+                            idx++;
                         }
-                        idx++;
-                    }
 
-                    opsCount ++;
+                        opsCount++;
+
+                    } catch (Exception ex) {
+                        log.warn("Failed parsing row of node type %s. " +
+                                "\n\t\trow: %s", label, nextRow);
+                    }
                 }
 
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
 
                 log.error("Failed parsing node type %s: ", label);
 
@@ -268,10 +335,8 @@ public class ImportProcedures {
                                       String label,
                                       String startNodeLabel,
                                       String endNodeLabel,
-                                      String startMatchProp,
-                                      String endMatchProp,
-                                      int startMatchPropCol,
-                                      int endMatchPropCol,
+                                      String startNodeProp,
+                                      String endNodeProp,
                                       Map<String, String> propMap) {
 
         new Thread(() -> {
@@ -280,9 +345,23 @@ public class ImportProcedures {
             String nextRow;
             long opsCount = 0;
 
-            try {
+            int startMatchPropCol = -1;
+            int endMatchPropCol = -1;
 
-                Object[] propsArr = propMap.keySet().toArray();
+            for (int i=0; i<propMap.size(); i++) {
+                if (propMap.keySet().toArray()[i].equals("start")) {
+                    startMatchPropCol = i;
+                } else if (propMap.keySet().toArray()[i].equals("end")) {
+                    endMatchPropCol = i;
+                }
+            }
+
+            if(startMatchPropCol < 0 || endMatchPropCol < 0) {
+                log.error("Start or End definitions are missing. aborting...");
+                return;
+            }
+
+            try {
 
                 while(!(nextRow = queue.take()).equals(POISON)) {
 
@@ -295,7 +374,7 @@ public class ImportProcedures {
 
                         tx = api.beginTx();
 
-                        log.debug("Rolling over transaction at ops count ",opsCount);
+                        log.info("Rolling over transaction at ops count " + opsCount);
 
                     }
 
@@ -304,35 +383,41 @@ public class ImportProcedures {
                     try {
 
                         //Find endpoints and create the relationship
-                        Node startNode = api.findNode(Label.label(startNodeLabel),
-                                startMatchProp,
-                                propMap.get(propsArr[startMatchPropCol]).equals("int") ?
-                                        Integer.valueOf(rowTokens[startMatchPropCol]) :
-                                        rowTokens[startMatchPropCol]);
+                        Node startNode = api.findNode(Label.label(startNodeLabel), // node label
+                                                     startNodeProp, // the relevant property name
+                                                     propMap.get("start").equals("int") ? // the property value that identifies the specific node
+                                                                Integer.valueOf(rowTokens[startMatchPropCol]) :
+                                                                rowTokens[startMatchPropCol]);
 
                         if (startNode == null) {
                             log.warn("Failed creating relationship. Start node [:%s {%s=%s}] could not be found.",
-                                    startNodeLabel, startMatchProp, rowTokens[startMatchPropCol]);
+                                    startNodeLabel,
+                                    startNodeProp,
+                                    rowTokens[startMatchPropCol]);
                             continue;
                         }
 
-                        Node endNode = api.findNode(Label.label(endNodeLabel), endMatchProp,
-                                propMap.get(propsArr[endMatchPropCol]).equals("int") ?
-                                        Integer.valueOf(rowTokens[startMatchPropCol]) :
-                                        rowTokens[endMatchPropCol]);
+                        Node endNode = api.findNode(Label.label(endNodeLabel),
+                                                    endNodeProp,
+                                                    propMap.get("end").equals("int") ?
+                                                                Integer.valueOf(rowTokens[startMatchPropCol]) :
+                                                                rowTokens[endMatchPropCol]);
 
                         if (endNode == null) {
                             log.warn("Failed creating relationship. Start node [:%s {%s=%s}] could not be found.",
-                                    endNodeLabel, endMatchProp, rowTokens[endMatchPropCol]);
+                                    endNodeLabel,
+                                    endNodeProp,
+                                    rowTokens[endMatchPropCol]);
                             continue;
                         }
 
                         Relationship rel = startNode.createRelationshipTo(endNode, RelationshipType.withName(label));
+
                         int idx = 0;
                         for (String propName :
                                 propMap.keySet()
                                 ) {
-                            if (idx != startMatchPropCol && idx != endMatchPropCol) {
+                            if (!propName.equals("start") && !propName.equals("end")) {
                                 if (propMap.get(propName).equals("int")) {
                                     rel.setProperty(propName, Integer.valueOf(rowTokens[idx]));
                                 } else {
@@ -351,7 +436,7 @@ public class ImportProcedures {
                     }
                 }
 
-            } catch (InterruptedException e) {
+            } catch (Exception e) {
 
                 log.error("Failed parsing relationship type %s: ", label);
 
