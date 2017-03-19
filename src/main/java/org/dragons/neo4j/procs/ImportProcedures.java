@@ -11,11 +11,14 @@ import org.neo4j.procedure.Procedure;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+
+import org.apache.tools.ant.DirectoryScanner;
 
 /**
  * Created by eladw on 09/03/2017.
@@ -190,7 +193,7 @@ public class ImportProcedures {
 
     @Procedure(mode=Mode.SCHEMA)
     public void loadNodesFolder(@Name("Directory path") String dir,
-                                @Name("File prefix") String prefix,
+                                @Name("File pattern") String pattern,
                                 @Name("Node label") String label,
                                 @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
                                         "If this value is null, the first row will be parsed as the header.") String header,
@@ -198,17 +201,29 @@ public class ImportProcedures {
                                 @Name("batch size for a single transaction") long batchSize,
                                 @Name("array of property names to index on")List<String> indexedProps) {
 
-        File directory = new File(dir);
-        File[] files = directory.listFiles((dir1, name) -> name.startsWith(prefix));
-        for (File file :
-                files) {
-            loadNodesFile(file.getPath(), label, header, skipFirst, batchSize,indexedProps);
+        File folder = new File(dir);
+        if (!folder.exists()) {
+            log.error("Directory not found: %s", dir);
+            return;
+        }
+
+        String[] files = getMatchingFiles(dir, pattern);
+
+        if(files.length == 0) {
+            log.error("No matching files found for: %s/%s", dir, pattern);
+            return;
+        } else {
+            log.info("Starting import %d files", files.length);
+        }
+
+        for (String file : files) {
+            loadNodesFile(Paths.get(dir,file).toString(), label, header, skipFirst, batchSize, indexedProps);
         }
     }
 
     @Procedure(mode=Mode.SCHEMA)
     public void loadRelationshipsFolder(@Name("Directory path") String dir,
-                                        @Name("File prefix") String prefix,
+                                        @Name("File pattern") String pattern,
                                         @Name("Node label") String label,
                                         @Name("Start node label") String startLabel,
                                         @Name("End node label") String endNLabel,
@@ -221,13 +236,34 @@ public class ImportProcedures {
                                         @Name("batch size for a single transaction") long batchSize,
                                         @Name("Whether to create indices on nodes properties to speed-up relationship creation") Boolean index) {
 
-        File directory = new File(dir);
-        File[] files = directory.listFiles((dir1, name) -> name.startsWith(prefix));
-        for (File file :
-                files) {
-            loadRelationshipFile(file.getPath(), label, startLabel, endNLabel, startNodeProp, endNodeProp, header, skipFirst, batchSize, index);
+        File folder = new File(dir);
+        if (!folder.exists()) {
+            log.error("Directory not found: %s", dir);
+            return;
         }
 
+        String[] files = getMatchingFiles(dir, pattern);
+
+        if(files.length == 0) {
+            log.error("No matching files found for: %s/%s", dir, pattern);
+            return;
+        } else {
+            log.info("Starting import %d files", files.length);
+        }
+
+        for (String file : files) {
+            loadRelationshipFile(Paths.get(dir,file).toString(), label, startLabel, endNLabel, startNodeProp, endNodeProp, header, skipFirst, batchSize, index);
+        }
+
+    }
+
+    private String[] getMatchingFiles(String baseDir, String pattern) {
+        DirectoryScanner scanner = new DirectoryScanner();
+        scanner.setBasedir(baseDir);
+        scanner.setCaseSensitive(false);
+        scanner.setIncludes(new String[]{pattern});
+        scanner.scan();
+        return scanner.getIncludedFiles();
     }
 
     private Map<String, String> buildPropertyTypeMap(String header) {

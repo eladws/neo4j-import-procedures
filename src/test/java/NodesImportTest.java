@@ -71,14 +71,14 @@ public class NodesImportTest {
         // setup
 
         // when
-        graphDatabaseService.execute("call org.dragons.neo4j.procs.loadNodesFolder('C:/data', 'node_person','person','id:int,first_name:string,last_name:string,gender:string,height:int,birth:int,death:int', true, 6,null)");
+        graphDatabaseService.execute("call org.dragons.neo4j.procs.loadNodesFolder('C:/data', '**/*person*','person','id:int,first_name:string,last_name:string,gender:string,height:int,birth:int,death:int', true, 6,null)");
 
         // then
         final Result result = graphDatabaseService.execute("match (:person) return count(*) as n");
 
         Object n = Iterators.single(result.columnAs("n"));
 
-        Assert.assertEquals(6, ((Long)n).intValue());
+        Assert.assertEquals(12, ((Long)n).intValue());
 
     }
 
