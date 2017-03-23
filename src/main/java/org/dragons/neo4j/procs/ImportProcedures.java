@@ -12,6 +12,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,12 @@ public class ImportProcedures {
         try {
 
             log.info("Importing nodes of type %s from %s started.", label, file);
+
+            if(indexedProps != null && indexedProps.size() > 0) {
+                log.info("Creating indexes...");
+                indexedProps.forEach(s -> graphDatabaseAPI.execute(String.format("CREATE INDEX ON :%s(%s)",label,s)));
+                log.info("Indexes created.");
+            }
 
             BufferedReader br = new BufferedReader(new FileReader(file));
 
@@ -81,19 +88,18 @@ public class ImportProcedures {
                     }
                 }
 
+                // log.info("putting line %d in queue: %s", rowCount, line);
+
                 workerQueue.put(line);
 
+                if(rowCount % 100000 == 0) {
+                    log.info("Processed %d nodes of type %s", rowCount, label);
+                }
             }
 
             workerQueue.put(POISON);
 
-            log.info("Finished loading %s lines.",String.valueOf(rowCount));
-
-            if(indexedProps != null && indexedProps.size() > 0) {
-                log.info("Starting indexing process...");
-                indexedProps.forEach(s -> graphDatabaseAPI.execute(String.format("CREATE INDEX ON :%s(%s)",label,s)));
-                log.info("Indexing process finished.");
-            }
+            log.info("Finished loading %d lines.", rowCount);
 
         } catch (Exception e) {
             log.error("Failed with exception: %s",e.getMessage());
@@ -179,11 +185,15 @@ public class ImportProcedures {
 
                 workerQueue.put(line);
 
+                if(rowCount % 100000 == 0) {
+                    log.info("Processed %sd nodes of type %s", rowCount, label);
+                }
+
             }
 
             workerQueue.put(POISON);
 
-            log.info("Finished loading %s lines.",String.valueOf(rowCount));
+            log.info("Finished loading %d lines.", rowCount);
 
         } catch (Exception e) {
             log.error("Failed with exception: %s",e.getMessage());
@@ -213,11 +223,20 @@ public class ImportProcedures {
             log.error("No matching files found for: %s/%s", dir, pattern);
             return;
         } else {
-            log.info("Starting import %d files", files.length);
+            log.info("Starting import %d files:", files.length);
+            Arrays.stream(files).forEach(file -> log.info("Will load file %s",file));
         }
 
+        if(indexedProps != null && indexedProps.size() > 0) {
+            log.info("Creating indexes...");
+            indexedProps.forEach(s -> graphDatabaseAPI.execute(String.format("CREATE INDEX ON :%s(%s)",label,s)));
+            log.info("Indexes created.");
+        }
+
+        int fileNum = 0;
         for (String file : files) {
-            loadNodesFile(Paths.get(dir,file).toString(), label, header, skipFirst, batchSize, indexedProps);
+            log.info("Starting import from file %d.", fileNum++);
+            loadNodesFile(Paths.get(dir,file).toString(), label, header, skipFirst, batchSize, null);
         }
     }
 
@@ -226,7 +245,7 @@ public class ImportProcedures {
                                         @Name("File pattern") String pattern,
                                         @Name("Node label") String label,
                                         @Name("Start node label") String startLabel,
-                                        @Name("End node label") String endNLabel,
+                                        @Name("End node label") String endLabel,
                                         @Name("Start node property for matching") String startNodeProp,
                                         @Name("End node property for matching") String endNodeProp,
                                         @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
@@ -249,10 +268,11 @@ public class ImportProcedures {
             return;
         } else {
             log.info("Starting import %d files", files.length);
+            Arrays.stream(files).forEach(file -> log.info("Will load file %s",file));
         }
 
         for (String file : files) {
-            loadRelationshipFile(Paths.get(dir,file).toString(), label, startLabel, endNLabel, startNodeProp, endNodeProp, header, skipFirst, batchSize, index);
+            loadRelationshipFile(Paths.get(dir,file).toString(), label, startLabel, endLabel, startNodeProp, endNodeProp, header, skipFirst, batchSize, index);
         }
 
     }
@@ -344,8 +364,7 @@ public class ImportProcedures {
                         opsCount++;
 
                     } catch (Exception ex) {
-                        log.warn("Failed parsing row of node type %s. " +
-                                "\n\t\trow: %s", label, nextRow);
+                        log.warn("Failed parsing row of node type %s.\n\t\t row: %s", label, nextRow);
                     }
                 }
 
@@ -436,7 +455,7 @@ public class ImportProcedures {
                         Node endNode = api.findNode(Label.label(endNodeLabel),
                                                     endNodeProp,
                                                     propMap.get("end").equals("int") ?
-                                                                Integer.valueOf(rowTokens[startMatchPropCol]) :
+                                                                Integer.valueOf(rowTokens[endMatchPropCol]) :
                                                                 rowTokens[endMatchPropCol]);
 
                         if (endNode == null) {
