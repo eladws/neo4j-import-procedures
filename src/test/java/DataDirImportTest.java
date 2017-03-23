@@ -37,9 +37,20 @@ public class DataDirImportTest {
         // setup
 
         // when
+        graphDatabaseService.execute("call org.dragons.neo4j.procs.loadWithConfiguration('C:/Dev/BitBucket/neo4j-import/src/test/resources/import_config_test.json',4)");
 
         // then
+        final Result result = graphDatabaseService.execute("match (:dragon)-[:fire]->(:dragon) return count(*) as n");
 
+        Object n = Iterators.single(result.columnAs("n"));
+
+        // Assert.assertEquals(20, ((Long)n).intValue());
+
+        final Result result2 = graphDatabaseService.execute("match (d:dragon) return d.name as name");
+
+        Object name = Iterators.array(result2.columnAs("name"))[0];
+
+        Assert.assertEquals("Dragonov", (String)name);
     }
 
 }

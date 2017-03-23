@@ -1,5 +1,9 @@
 package org.dragons.neo4j.procs;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.dragons.neo4j.utils.ImportConfig;
+import org.dragons.neo4j.utils.NodeImportConfig;
+import org.dragons.neo4j.utils.RelationshipImportConfig;
 import org.neo4j.graphdb.*;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.logging.Log;
@@ -11,6 +15,7 @@ import org.neo4j.procedure.Procedure;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -202,14 +207,14 @@ public class ImportProcedures {
     }
 
     @Procedure(mode=Mode.SCHEMA)
-    public void loadNodesFolder(@Name("Directory path") String dir,
-                                @Name("File pattern") String pattern,
-                                @Name("Node label") String label,
-                                @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
+    public void loadNodesFiles(@Name("Directory path") String dir,
+                               @Name("File pattern") String pattern,
+                               @Name("Node label") String label,
+                               @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
                                         "If this value is null, the first row will be parsed as the header.") String header,
-                                @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
-                                @Name("batch size for a single transaction") long batchSize,
-                                @Name("array of property names to index on")List<String> indexedProps) {
+                               @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
+                               @Name("batch size for a single transaction") long batchSize,
+                               @Name("array of property names to index on")List<String> indexedProps) {
 
         File folder = new File(dir);
         if (!folder.exists()) {
@@ -241,19 +246,19 @@ public class ImportProcedures {
     }
 
     @Procedure(mode=Mode.SCHEMA)
-    public void loadRelationshipsFolder(@Name("Directory path") String dir,
-                                        @Name("File pattern") String pattern,
-                                        @Name("Node label") String label,
-                                        @Name("Start node label") String startLabel,
-                                        @Name("End node label") String endLabel,
-                                        @Name("Start node property for matching") String startNodeProp,
-                                        @Name("End node property for matching") String endNodeProp,
-                                        @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
+    public void loadRelationshipsFiles(@Name("Directory path") String dir,
+                                       @Name("File pattern") String pattern,
+                                       @Name("Node label") String label,
+                                       @Name("Start node label") String startLabel,
+                                       @Name("End node label") String endLabel,
+                                       @Name("Start node property for matching") String startNodeProp,
+                                       @Name("End node property for matching") String endNodeProp,
+                                       @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
                                                 "If this value is null, the first row will be parsed as the header." +
                                                 "The start and end constraints must be named start and end.") String header,
-                                        @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
-                                        @Name("batch size for a single transaction") long batchSize,
-                                        @Name("Whether to create indices on nodes properties to speed-up relationship creation") Boolean index) {
+                                       @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
+                                       @Name("batch size for a single transaction") long batchSize,
+                                       @Name("Whether to create indices on nodes properties to speed-up relationship creation") Boolean index) {
 
         File folder = new File(dir);
         if (!folder.exists()) {
@@ -273,6 +278,40 @@ public class ImportProcedures {
 
         for (String file : files) {
             loadRelationshipFile(Paths.get(dir,file).toString(), label, startLabel, endLabel, startNodeProp, endNodeProp, header, skipFirst, batchSize, index);
+        }
+
+    }
+
+    @Procedure(mode=Mode.SCHEMA)
+    public void loadWithConfiguration(@Name("Configuration file") String configFilePath,
+                                      @Name("Batch size for a single transaction") long batchSize) {
+
+        try {
+
+            byte[] jsonData = Files.readAllBytes(Paths.get(configFilePath));
+
+            ObjectMapper om = new ObjectMapper();
+
+            ImportConfig importConfig = om.readValue(jsonData, ImportConfig.class);
+
+            for (NodeImportConfig nic : importConfig.nodes) {
+                if (!importConfig.parallelLevel.equals("none")) {
+                    new Thread(() -> loadNodesFiles(nic.rootDir, nic.namePattern, nic.label, nic.header, nic.skipFirst, batchSize, nic.indexedProps)).start();
+                } else {
+                    loadNodesFiles(nic.rootDir, nic.namePattern, nic.label, nic.header, nic.skipFirst, batchSize, nic.indexedProps);
+                }
+            }
+
+            //TODO: If parallelism is only at element level - wait for nodes to finish...
+            for (RelationshipImportConfig ric : importConfig.relationships) {
+                loadRelationshipsFiles(ric.rootDir, ric.namePattern, ric.label, ric.startNodeLabel, ric.endNodeLabel,
+                        ric.startNodeMatchPropName, ric.endNodeMatchPropName,
+                        ric.header, ric.skipFirst, batchSize, false);
+            }
+
+        } catch (Exception e) {
+            log.error("Failed importing with configuration file " + configFilePath);
+            log.error(e.getMessage());
         }
 
     }

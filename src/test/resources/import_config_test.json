@@ -1,0 +1,34 @@
+{
+  "parallelLevel" : "element",
+  "nodes": [
+    {
+      "rootDir": "c:/data",
+      "namePattern": "**/node_person*",
+      "label": "person",
+      "header": "id:int,first_name,last_name,height:int,birth:int,death:int",
+      "skipFirst": true,
+      "indexedProps": []
+    },
+    {
+      "rootDir": "c:/data",
+      "namePattern": "**/node_dragon*",
+      "label": "dragon",
+      "header": "name:string",
+      "skipFirst": true,
+      "indexedProps": []
+    }
+  ],
+  "relationships": [
+    {
+      "rootDir": "C:/data",
+      "namePattern": "**/rel*",
+      "label": "own",
+      "startNodeLabel": "dragon",
+      "startNodeMatchPropName": "name",
+      "endNodeLabel": "dragon",
+      "endNodeMatchPropName": "name",
+      "header": "start:string,end:string,ts:int,duration:int",
+      "skipFirst": true
+    }
+  ]
+}
