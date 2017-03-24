@@ -97,7 +97,7 @@ public class ImportProcedures {
 
                 workerQueue.put(line);
 
-                if(rowCount % 100000 == 0) {
+                if(rowCount % 1000000 == 0) {
                     log.info("Processed %d nodes of type %s", rowCount, label);
                 }
             }
@@ -190,7 +190,7 @@ public class ImportProcedures {
 
                 workerQueue.put(line);
 
-                if(rowCount % 100000 == 0) {
+                if(rowCount % 1000000 == 0) {
                     log.info("Processed %sd nodes of type %s", rowCount, label);
                 }
 
@@ -376,7 +376,7 @@ public class ImportProcedures {
 
                         tx = api.beginTx();
 
-                        log.info("Rolling over transaction at ops count " + opsCount);
+                        // log.info("Rolling over transaction at ops count " + opsCount);
 
                     }
 
@@ -409,7 +409,7 @@ public class ImportProcedures {
 
             } catch (Exception e) {
 
-                log.error("Failed parsing node type %s: ", label);
+                log.error("Failed parsing node type %s: . successful operations: %d", label, opsCount);
 
             } finally {
                 if (tx != null) {
@@ -468,7 +468,7 @@ public class ImportProcedures {
 
                         tx = api.beginTx();
 
-                        log.info("Rolling over transaction at ops count " + opsCount);
+                        // log.info("Rolling over transaction at ops count " + opsCount);
 
                     }
 
@@ -532,7 +532,7 @@ public class ImportProcedures {
 
             } catch (Exception e) {
 
-                log.error("Failed parsing relationship type %s: ", label);
+                log.error("Failed parsing relationship type %s: . successful operations: %d", label, opsCount);
 
             } finally {
                 if (tx != null) {
