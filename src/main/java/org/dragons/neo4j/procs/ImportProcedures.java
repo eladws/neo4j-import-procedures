@@ -404,12 +404,14 @@ public class ImportProcedures {
 
                     } catch (Exception ex) {
                         log.warn("Failed parsing row of node type %s.\n\t\t row: %s", label, nextRow);
+                        log.error("Exception %s", ex.getMessage());
                     }
                 }
 
             } catch (Exception e) {
 
                 log.error("Failed parsing node type %s: . successful operations: %d", label, opsCount);
+                log.error("Exception %s", e.getMessage());
 
             } finally {
                 if (tx != null) {
@@ -533,6 +535,7 @@ public class ImportProcedures {
             } catch (Exception e) {
 
                 log.error("Failed parsing relationship type %s: . successful operations: %d", label, opsCount);
+                log.error("Exception %s", e.getMessage());
 
             } finally {
                 if (tx != null) {
