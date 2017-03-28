@@ -11,10 +11,12 @@ import org.neo4j.kernel.impl.proc.Procedures;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
+import java.util.List;
+
 /**
  * Created by eladw on 09/03/2017.
  */
-public class DataDirImportTest {
+public class ConfigImportTest {
 
     private GraphDatabaseService graphDatabaseService;
 
@@ -37,20 +39,15 @@ public class DataDirImportTest {
         // setup
 
         // when
-        graphDatabaseService.execute("call org.dragons.neo4j.procs.loadWithConfiguration('C:/Dev/BitBucket/neo4j-import/src/test/resources/import_config_test.json',4)");
+        graphDatabaseService.execute("call org.dragons.neo4j.procs.loadWithConfiguration('C:/Dev/Github/neo4j-import-procedures/src/test/resources',2)");
 
         // then
-        final Result result = graphDatabaseService.execute("match (:dragon)-[:fire]->(:dragon) return count(*) as n");
+        final Result result = graphDatabaseService.execute("match (:person)-[:friend]->(:person) return count(*) as n");
 
-        Object n = Iterators.single(result.columnAs("n"));
+        Object n = Iterators.asList(result.columnAs("n"));
 
-        // Assert.assertEquals(20, ((Long)n).intValue());
+        Assert.assertTrue(((List) n).size() > 0);
 
-        final Result result2 = graphDatabaseService.execute("match (d:dragon) return d.name as name");
-
-        Object name = Iterators.array(result2.columnAs("name"))[0];
-
-        Assert.assertEquals("Dragonov", (String)name);
     }
 
 }

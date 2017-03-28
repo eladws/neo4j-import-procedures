@@ -1,34 +1,26 @@
 {
-  "parallelLevel" : "element",
+  "parallelLevel" : "none",
   "nodes": [
     {
-      "rootDir": "c:/data",
-      "namePattern": "**/node_person*",
+      "rootDir": "C:/Dev/Github/neo4j-import-procedures/src/test/resources/data",
+      "namePattern": "**/person*",
       "label": "person",
-      "header": "id:int,first_name,last_name,height:int,birth:int,death:int",
-      "skipFirst": true,
-      "indexedProps": []
-    },
-    {
-      "rootDir": "c:/data",
-      "namePattern": "**/node_dragon*",
-      "label": "dragon",
-      "header": "name:string",
-      "skipFirst": true,
+      "header": "id:int,name",
+      "skipFirst": false,
       "indexedProps": []
     }
   ],
   "relationships": [
     {
-      "rootDir": "C:/data",
-      "namePattern": "**/rel*",
-      "label": "own",
-      "startNodeLabel": "dragon",
-      "startNodeMatchPropName": "name",
-      "endNodeLabel": "dragon",
-      "endNodeMatchPropName": "name",
-      "header": "start:string,end:string,ts:int,duration:int",
-      "skipFirst": true
+      "rootDir": "C:/Dev/Github/neo4j-import-procedures/src/test/resources/data",
+      "namePattern": "**/friend*",
+      "label": "friend",
+      "startNodeLabel": "person",
+      "startNodeMatchPropName": "id",
+      "endNodeLabel": "person",
+      "endNodeMatchPropName": "id",
+      "header": "start:int,end:int",
+      "skipFirst": false
     }
   ]
 }
