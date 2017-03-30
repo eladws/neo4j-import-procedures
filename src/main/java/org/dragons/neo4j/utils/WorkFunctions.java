@@ -62,7 +62,6 @@ public class WorkFunctions {
                                                                             Integer.valueOf(rowTokens[relWorkConf.getEndMatchPropCol()]) :
                                                                             rowTokens[relWorkConf.getEndMatchPropCol()]);
 
-        config.getLog().info("got end node: %s", endNode );
 
         if (endNode == null) {
             config.getLog().warn("Failed creating relationship. Start node [:%s {%s=%s}] could not be found.",

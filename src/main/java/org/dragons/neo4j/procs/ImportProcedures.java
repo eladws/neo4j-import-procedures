@@ -110,9 +110,9 @@ public class ImportProcedures {
                 for (String file :
                         files) {
                     if (importConfig.parallelLevel.equals("nodes")) {
-                        new Thread(() -> batchLoadNodes(file, nic, (int) batchSize)).start();
+                        new Thread(() -> batchLoadNodes(Paths.get(nic.rootDir, file).toString(), nic, (int) batchSize)).start();
                     } else {
-                        batchLoadNodes(file, nic, (int) batchSize);
+                        batchLoadNodes(Paths.get(nic.rootDir, file).toString(), nic, (int) batchSize);
                     }
                 }
             }
@@ -130,9 +130,9 @@ public class ImportProcedures {
                         files) {
 
                     if (importConfig.parallelLevel.equals("rels")) {
-                        new Thread(() -> batchLoadRelationships(file, ric, (int) batchSize)).start();
+                        new Thread(() -> batchLoadRelationships(Paths.get(ric.rootDir, file).toString(), ric, (int) batchSize)).start();
                     } else {
-                        batchLoadRelationships(file, ric, (int) batchSize);
+                        batchLoadRelationships(Paths.get(ric.rootDir, file).toString(), ric, (int) batchSize);
                     }
                 }
             }
