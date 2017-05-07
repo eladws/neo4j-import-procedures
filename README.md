@@ -27,11 +27,21 @@ CALL org.dragons.neo4j.procs.loadRelationshipsFile('my_file.csv','myRelLabel','s
 CALL org.dragons.neo4j.procs.loadWithConfiguration('config_file.json',10000)
 ```
 
+## Parallelism options
+Parallelism options are defined separately for nodes and relationships.
+
+Four options are available to control the behaviour of the import process:
+  1. "none": No parallelism at all. A single thread will read all files sequentialy.
+  2. "group": A thread will be spawned for each nodes or relationships group. Within each group - the files will be processed           sequentialy.
+  3. "in-group": The groups will be processed one after the other. The files inside each group will be processed in parallel.
+  4. "all": All files will be processed in parallel (a thread for each file).
+
 **Example JSON configuration file**
 
 ```javascript
 {
-  "parallelLevel" : "none",
+  "nodesParallelLevel" : "all",
+  "relsParallelLevel" : "in-group",
   "nodes": [
     {
       "rootDir": "C:/nodesData",
