@@ -107,7 +107,16 @@ public class ImportProcedures {
                     //parallelism inside each group will occur if the configuration does not specify "none".
                     boolean isParallel = importConfig.nodesParallelLevel.equals("in-group") ||
                                          importConfig.nodesParallelLevel.equals("all");
+
                     loadNodesGroup(nic, isParallel, (int) batchSize, nodesThreads);
+
+                    if(!importConfig.nodesParallelLevel.equals("all")) {
+                        //wait for threads of this group to terminate before we continue to the next group
+                        for(Thread thread : nodesThreads) {
+                            thread.join();
+                        }
+                        nodesThreads.clear();
+                    }
                 }
 
             }
@@ -136,6 +145,14 @@ public class ImportProcedures {
                     boolean isParallel = importConfig.relsParallelLevel.equals("in-group") ||
                                          importConfig.relsParallelLevel.equals("all");
                     loadRelsGroup(ric, isParallel, (int) batchSize, relsThreads);
+
+                    if(!importConfig.relsParallelLevel.equals("all")) {
+                        //wait for threads of this group to terminate before we continue to the next group
+                        for(Thread thread : relsThreads) {
+                            thread.join();
+                        }
+                        relsThreads.clear();
+                    }
                 }
             }
 
