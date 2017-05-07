@@ -260,7 +260,7 @@ public class ImportProcedures {
                         config.setPropertiesMap(buildPropertyTypeMap(config.getBaseImportConfig().header));
                     }
 
-                    new Thread(new GraphBatchWorker(config)).start();
+                    new Thread(new GraphBatchWorker(config, file)).start();
 
                     if (config.getBaseImportConfig().skipFirst) {
                         continue;
@@ -269,10 +269,6 @@ public class ImportProcedures {
                 }
 
                 workerQueue.put(line);
-
-                if (rowCount % 1000000 == 0) {
-                    log.info("Processed %d elements of type %s", rowCount, config.getBaseImportConfig().label);
-                }
 
             }
 

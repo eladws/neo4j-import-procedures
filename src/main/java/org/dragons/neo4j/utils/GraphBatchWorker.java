@@ -13,9 +13,11 @@ public class GraphBatchWorker implements Runnable {
 
     public static String BATCH_WORKER_POISON = "POISON";
     GraphBatchWorkConfig workConfig;
+    String file;
 
-    public GraphBatchWorker(GraphBatchWorkConfig config) {
+    public GraphBatchWorker(GraphBatchWorkConfig config, String fileName) {
         workConfig = config;
+        file = fileName;
     }
 
     @Override
@@ -53,6 +55,10 @@ public class GraphBatchWorker implements Runnable {
 
                     if(result == WorkFunctions.FunctionResult.SUCCESS) {
                         opsCount++;
+
+                        if (opsCount % 1000000 == 0) {
+                            log.info("Loaded %d elements of type %s from %s", opsCount, workConfig.getBaseImportConfig().label, file);
+                        }
                     }
 
                 } catch (Exception ex) {
