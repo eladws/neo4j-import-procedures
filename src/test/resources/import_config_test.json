@@ -1,5 +1,6 @@
 {
-  "parallelLevel" : "none",
+  "nodesParallelLevel" : "all",
+  "relsParallelLevel" : "in-group",
   "nodes": [
     {
       "rootDir": "C:/Dev/Github/neo4j-import-procedures/src/test/resources/data",

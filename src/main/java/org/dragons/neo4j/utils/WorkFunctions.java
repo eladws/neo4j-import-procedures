@@ -14,8 +14,8 @@ import java.util.Map;
 public class WorkFunctions {
 
     @FunctionalInterface
-    public interface WorkFunc<A, B, C> {
-        C apply (A a, B b);
+    public interface WorkFunc<IN1, IN2, OUT> {
+        OUT apply (IN1 a, IN2 b);
     }
 
     public enum FunctionResult{FAIL, SUCCESS}

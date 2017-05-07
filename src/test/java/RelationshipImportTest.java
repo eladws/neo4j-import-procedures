@@ -11,6 +11,10 @@ import org.neo4j.kernel.impl.proc.Procedures;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.test.TestGraphDatabaseFactory;
 
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Paths;
+
 /**
  * Created by eladw on 13/03/2017.
  */
@@ -32,21 +36,28 @@ public class RelationshipImportTest {
     }
 
     @Test
-    public void testSanityFileImport() {
+    public void testSanityFileImport() throws URISyntaxException {
 
         // setup
+        for(int i=0; i<20; i++) {
+            String cypher = String.format("create (:person {id:%d})",i);
+            graphDatabaseService.execute(cypher);
+        }
+
+        URL resource = NodesImportTest.class.getResource("knows1.csv");
+        String path = Paths.get(resource.toURI()).toAbsolutePath().toString().replace("\\", "/");
+        String cypher  = String.format("call org.dragons.neo4j.procs.loadRelationshipsFile('%s', 'knows', 'person', 'person', 'id', 'id', 'start:int,end:int,since:string', true, 2)", path);
 
         // when
-        graphDatabaseService.execute("create (:dragon {name: 'Dragonov'})");
-        graphDatabaseService.execute("create (:dragon {name: 'Dragonite'})");
-        graphDatabaseService.execute("call org.dragons.neo4j.procs.loadRelationshipFile('C:/data/rels_fire.csv', 'fire', 'dragon', 'dragon','name','name',null, false, 2, false)");
+        graphDatabaseService.execute(cypher);
 
         // then
-        final Result result = graphDatabaseService.execute("match (:dragon)-[:fire]->(:dragon) return count(*) as n");
+        final Result result = graphDatabaseService.execute("match (:person)-[k:knows]->(:person) return count(k) as n");
 
         Object n = Iterators.single(result.columnAs("n"));
 
-        Assert.assertEquals(20, ((Long)n).intValue());
+        //resource file knows1.csv contains 6 relationships
+        Assert.assertEquals(6, ((Long)n).intValue());
 
     }
 

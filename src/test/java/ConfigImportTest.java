@@ -37,16 +37,11 @@ public class ConfigImportTest {
     public void testSingleRowImport() {
 
         // setup
+        //TODO: create configuration file with paths to the files in the resources directory.
 
         // when
-        graphDatabaseService.execute("call org.dragons.neo4j.procs.loadWithConfiguration('C:/Dev/Github/neo4j-import-procedures/src/test/resources',2)");
 
         // then
-        final Result result = graphDatabaseService.execute("match (:person)-[:friend]->(:person) return count(*) as n");
-
-        Object n = Iterators.asList(result.columnAs("n"));
-
-        Assert.assertTrue(((List) n).size() > 0);
 
     }
 

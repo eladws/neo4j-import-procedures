@@ -14,10 +14,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -38,11 +35,13 @@ public class ImportProcedures {
                               @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
                                       "If this value is null, the first row will be parsed as the header.") String header,
                               @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
-                              @Name("batch size for a single transaction") long batchSize,
-                              @Name("array of property names to index on") List<String> indexedProps) {
+                              @Name("Batch size for a single transaction") long batchSize,
+                              @Name("Array of property names to create indexes on") List<String> indexedProps) {
 
         if(indexedProps != null) {
-            createIndexes(label, indexedProps);
+            // Causes deadlocks in Neo4j. Uncomment when solved.
+            log.info("ImportProcedures: Creating indices is not supported in this version. Create the indices manually before starting the import.");
+            // createIndexes(label, indexedProps);
         }
 
         NodeImportConfig importConf = new NodeImportConfig();
@@ -61,11 +60,11 @@ public class ImportProcedures {
                                       @Name("Relationship label") String label,
                                       @Name("Start node label") String startLabel,
                                       @Name("End node label") String endNLabel,
-                                      @Name("Start node property for matching") String startNodeProp,
-                                      @Name("End node property for matching") String endNodeProp,
+                                      @Name("Start node property for matching (must be unique!)") String startNodeProp,
+                                      @Name("End node property for matching (must be unique!)") String endNodeProp,
                                       @Name("Properties names and types (e.g. 'name1:type1,name2:type2'...) in the same order as they appear in the file." +
                                               "If this value is null, the first row will be parsed as the header." +
-                                              "The start and end constraints must be named 'start' and 'end' exactly.") String header,
+                                              "The properties identifying the start and end nodes must be named 'start' and 'end' exactly.") String header,
                                       @Name("Whether the first line of the file should be ignored") Boolean skipFirst,
                                       @Name("batch size for a single transaction") long batchSize) {
 
@@ -80,7 +79,6 @@ public class ImportProcedures {
 
         batchLoadRelationships(file, importConf, (int) batchSize);
 
-
     }
 
     @Procedure(mode = Mode.SCHEMA)
@@ -88,6 +86,8 @@ public class ImportProcedures {
                                       @Name("Batch size for a single transaction") long batchSize) {
 
         try {
+
+            List<Thread> nodesThreads = new ArrayList<>();
 
             byte[] jsonData = Files.readAllBytes(Paths.get(configFilePath));
 
@@ -97,44 +97,51 @@ public class ImportProcedures {
 
             for (NodeImportConfig nic : importConfig.nodes) {
 
-                if(nic.indexedProps != null) {
-                    createIndexes(nic.label, nic.indexedProps);
+                if(importConfig.nodesParallelLevel.equals("group")) {
+                    //spawn new thread for this nodes group. files inside this group will be imported sequentially.
+                   Thread groupThread = new Thread(() -> loadNodesGroup(nic, false, (int) batchSize, nodesThreads));
+                   groupThread.start();
+                   nodesThreads.add(groupThread);
+                } else {
+                    //groups will be ran sequentially.
+                    //parallelism inside each group will occur if the configuration does not specify "none".
+                    boolean isParallel = importConfig.nodesParallelLevel.equals("in-group") ||
+                                         importConfig.nodesParallelLevel.equals("all");
+                    loadNodesGroup(nic, isParallel, (int) batchSize, nodesThreads);
                 }
 
-                String[] files = getMatchingFiles(nic.rootDir, nic.namePattern);
+            }
 
-                log.info("Starting to load %d files...",files.length);
+            //Wait for all nodes to complete before starting edges import
+            for(Thread thread : nodesThreads) {
+                thread.join();
+            }
 
-                Arrays.stream(files).forEach(f -> log.info("Will load file %s",Paths.get(nic.rootDir, f).toString()));
+            log.info("Finished importing nodes.");
 
-                for (String file :
-                        files) {
-                    if (importConfig.parallelLevel.equals("nodes")) {
-                        new Thread(() -> batchLoadNodes(Paths.get(nic.rootDir, file).toString(), nic, (int) batchSize)).start();
-                    } else {
-                        batchLoadNodes(Paths.get(nic.rootDir, file).toString(), nic, (int) batchSize);
-                    }
+            log.info("Starting relationships import...");
+
+            List<Thread> relsThreads = new ArrayList<>();
+
+            for (RelationshipImportConfig ric : importConfig.relationships) {
+
+                if(importConfig.relsParallelLevel.equals("group")) {
+                    //spawn new thread for this nodes group. files inside this group will be imported sequentially.
+                    Thread groupThread = new Thread(() -> loadRelsGroup(ric, false, (int) batchSize, relsThreads));
+                    groupThread.start();
+                    relsThreads.add(groupThread);
+                } else {
+                    //groups will be ran sequentially.
+                    //parallelism inside each group will occur if the configuration does not specify "none".
+                    boolean isParallel = importConfig.relsParallelLevel.equals("in-group") ||
+                                         importConfig.relsParallelLevel.equals("all");
+                    loadRelsGroup(ric, isParallel, (int) batchSize, relsThreads);
                 }
             }
 
-            //TODO: If parallelism is only at element level - wait for nodes to finish...
-            for (RelationshipImportConfig ric : importConfig.relationships) {
-
-                String[] files = getMatchingFiles(ric.rootDir, ric.namePattern);
-
-                log.info("Starting to load %d files...",files.length);
-
-                Arrays.stream(files).forEach(f -> log.info("Will load file %s",Paths.get(ric.rootDir, f).toString()));
-
-                for (String file :
-                        files) {
-
-                    if (importConfig.parallelLevel.equals("rels")) {
-                        new Thread(() -> batchLoadRelationships(Paths.get(ric.rootDir, file).toString(), ric, (int) batchSize)).start();
-                    } else {
-                        batchLoadRelationships(Paths.get(ric.rootDir, file).toString(), ric, (int) batchSize);
-                    }
-                }
+            //Wait for all threads to complete
+            for(Thread thread : relsThreads) {
+                thread.join();
             }
 
         } catch (Exception e) {
@@ -142,6 +149,53 @@ public class ImportProcedures {
             log.error("Failed with exception %s: %s", e, e.getMessage());
         }
 
+    }
+
+    private void loadRelsGroup(RelationshipImportConfig ric, boolean isParallel, int batchSize, List<Thread> relsThreads) {
+
+        String[] files = getMatchingFiles(ric.rootDir, ric.namePattern);
+
+        log.info("Starting to load %d files...",files.length);
+
+        Arrays.stream(files).forEach(f -> log.info("Will load file %s", Paths.get(ric.rootDir, f).toString()));
+
+        for (String file :
+                files) {
+
+            if (isParallel) {
+                Thread fileThread = new Thread(() -> batchLoadRelationships(Paths.get(ric.rootDir, file).toString(), ric, batchSize));
+                fileThread.start();
+                relsThreads.add(fileThread);
+            } else {
+                batchLoadRelationships(Paths.get(ric.rootDir, file).toString(), ric, batchSize);
+            }
+        }
+    }
+
+    private void loadNodesGroup(NodeImportConfig nic, boolean isParallel, int batchSize, List<Thread> nodesThreads) {
+
+        if(nic.indexedProps != null) {
+            // Causes deadlocks in Neo4j. Uncomment when solved.
+            log.info("ImportProcedures: Creating indices is not supported in this version. Create the indices manually before starting the import.");
+            // createIndexes(nic.label, nic.indexedProps);
+        }
+
+        String[] files = getMatchingFiles(nic.rootDir, nic.namePattern);
+
+        log.info("Starting to load %d files...",files.length);
+
+        Arrays.stream(files).forEach(f -> log.info("Will load file %s", Paths.get(nic.rootDir, f).toString()));
+
+        for (String file :
+                files) {
+            if (isParallel) {
+                Thread fileThread = new Thread(() -> batchLoadNodes(Paths.get(nic.rootDir, file).toString(), nic, batchSize));
+                fileThread.start();
+                nodesThreads.add(fileThread);
+            } else {
+                batchLoadNodes(Paths.get(nic.rootDir, file).toString(), nic, batchSize);
+            }
+        }
     }
 
     private void createIndexes(String label, List<String> props) {
