@@ -13,7 +13,6 @@ public abstract class GraphBatchWorkConfig {
 
     protected BaseImportConfig baseImportConfig;
     protected int batchSize;
-    protected BlockingQueue<String> blockingQueue;
     protected Map<String, String> propertiesMap;
     protected GraphDatabaseAPI graphDatabaseAPI;
     protected Log log;
@@ -32,14 +31,6 @@ public abstract class GraphBatchWorkConfig {
 
     public void setBatchSize(int batchSize) {
         this.batchSize = batchSize;
-    }
-
-    public BlockingQueue<String> getBlockingQueue() {
-        return blockingQueue;
-    }
-
-    public void setBlockingQueue(BlockingQueue<String> blockingQueue) {
-        this.blockingQueue = blockingQueue;
     }
 
     public GraphDatabaseAPI getGraphDatabaseAPI() {

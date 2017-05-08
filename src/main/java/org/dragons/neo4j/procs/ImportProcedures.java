@@ -3,6 +3,7 @@ package org.dragons.neo4j.procs;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.tools.ant.DirectoryScanner;
 import org.dragons.neo4j.utils.*;
+import org.neo4j.graphdb.Transaction;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.logging.Log;
 import org.neo4j.procedure.Context;
@@ -15,13 +16,14 @@ import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 
 /**
  * Created by eladw on 09/03/2017.
  */
 public class ImportProcedures {
+
+    private static int totalNodesCount = 0;
+    private static int totalEdgesCount = 0;
 
     @Context
     public GraphDatabaseAPI graphDatabaseAPI;
@@ -85,6 +87,8 @@ public class ImportProcedures {
     public void loadWithConfiguration(@Name("Configuration file") String configFilePath,
                                       @Name("Batch size for a single transaction") long batchSize) {
 
+        long startTime = System.nanoTime();
+
         try {
 
             List<Thread> nodesThreads = new ArrayList<>();
@@ -126,9 +130,11 @@ public class ImportProcedures {
                 thread.join();
             }
 
-            log.info("Finished importing nodes.");
+            log.info("Finished importing nodes: %d nodes were successfully imported in %.2f ms.",totalNodesCount, (System.nanoTime() - startTime) / 1000000);
 
             log.info("Starting relationships import...");
+
+            long edgesStartTime = System.nanoTime();
 
             List<Thread> relsThreads = new ArrayList<>();
 
@@ -161,11 +167,16 @@ public class ImportProcedures {
                 thread.join();
             }
 
+            log.info("Finished importing edges: %d edges were successfully imported in %.2f ms.",totalEdgesCount, (System.nanoTime() - edgesStartTime) / 1000000);
+
         } catch (Exception e) {
             log.error("Failed importing with configuration file " + configFilePath);
             log.error("Failed with exception %s: %s", e, e.getMessage());
         }
 
+        long endTime = System.nanoTime();
+        long totalTime = (endTime - startTime) / 1000000;
+        log.info("Import summary: %d nodes, %d edges, total time: %.2f ms.", totalNodesCount, totalEdgesCount, totalTime);
     }
 
     private void loadRelsGroup(RelationshipImportConfig ric, boolean isParallel, int batchSize, List<Thread> relsThreads) {
@@ -243,19 +254,17 @@ public class ImportProcedures {
 
     private void batchLoadWithConfig(String file, GraphBatchWorkConfig config) {
 
+        String line;
+        int rowCount = 0;
+        int opsCount = 0;
+        Transaction tx = null;
+        WorkFunctions wf = new WorkFunctions();
+
+        log.info("Importing elements of type %s from file %s started.", config.getBaseImportConfig().label, file);
+
         try {
 
-            log.info("Importing elements of type %s from file %s started.", config.getBaseImportConfig().label, file);
-
             BufferedReader br = new BufferedReader(new FileReader(file));
-
-            String line;
-
-            BlockingQueue<String> workerQueue = new ArrayBlockingQueue<>(config.getBatchSize() * 2);
-
-            config.setBlockingQueue(workerQueue);
-
-            int rowCount = 0;
 
             while ((line = br.readLine()) != null) {
 
@@ -263,8 +272,7 @@ public class ImportProcedures {
 
                 if (rowCount == 1) {
 
-                    //first row: parse header and start the queue
-
+                    //first row: parse the header
                     if (config.getBaseImportConfig().header == null) {
 
                         //if there is no header supplied, the first row must be parsed as a header
@@ -273,11 +281,9 @@ public class ImportProcedures {
 
                     } else {
 
-                        //build property mao based on the given header
+                        //build property map based on the given header
                         config.setPropertiesMap(buildPropertyTypeMap(config.getBaseImportConfig().header));
                     }
-
-                    new Thread(new GraphBatchWorker(config, file)).start();
 
                     if (config.getBaseImportConfig().skipFirst) {
                         continue;
@@ -285,20 +291,54 @@ public class ImportProcedures {
 
                 }
 
-                workerQueue.put(line);
+                if (opsCount % config.getBatchSize() == 0) {
+
+                    if (tx != null) {
+                        tx.success();
+                        tx.close();
+                    }
+
+                    tx = graphDatabaseAPI.beginTx();
+
+                }
+
+                try {
+
+                    //apply function to current element
+                    WorkFunctions.FunctionResult result = wf.getFunction(config.getClass()).apply(line, config);
+
+                    if(result == WorkFunctions.FunctionResult.SUCCESS) {
+                        opsCount++;
+                        if(config.getBaseImportConfig().getClass().equals(NodeImportConfig.class)) {
+                            totalNodesCount++;
+                        } else {
+                            totalEdgesCount++;
+                        }
+                        if (opsCount % 1000000 == 0) {
+                            log.info("Loaded %d elements of type %s from file %s.", opsCount, config.getBaseImportConfig().label, file);
+                            log.info("Total count: %d nodes, %d edges.", totalNodesCount, totalEdgesCount);
+                        }
+                    }
+
+                } catch (Exception ex) {
+                    log.warn("Exception in file: %s \nFailed processing %s record: %s\nException: %s\n%s",
+                            file,
+                            config.getBaseImportConfig().label,
+                            line,
+                            ex,
+                            ex.getMessage());
+                }
 
             }
 
-            workerQueue.put(GraphBatchWorker.BATCH_WORKER_POISON);
-
-            log.info("Finished loading %d lines from file %s.", rowCount, file);
-
         } catch (Exception e) {
-
-            log.error("Failed with exception %s: %s", e, e.getMessage());
-
+            log.error("Exception in file: %s\nException: %s\n%s", file, e, e.getMessage());
+        } finally {
+            if (tx != null) {
+                tx.success();
+                tx.close();
+            }
         }
-
     }
 
     private String[] getMatchingFiles(String baseDir, String pattern) {
