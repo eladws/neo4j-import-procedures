@@ -15,7 +15,7 @@ public abstract class GraphBatchWorkConfig {
     protected Map<String, String> propertiesMap;
     protected GraphDatabaseAPI graphDatabaseAPI;
     protected Log log;
-    private NodesIndex nodesIndex;
+    private NodesIndexAPI nodesIndex;
 
     public BaseImportConfig getBaseImportConfig() {
         return baseImportConfig;
@@ -65,11 +65,11 @@ public abstract class GraphBatchWorkConfig {
         return sb.toString();
     }
 
-    public NodesIndex getNodesIndex() {
+    public NodesIndexAPI getNodesIndex() {
         return nodesIndex;
     }
 
-    public void setNodesIndex(NodesIndex nodesIndex) {
+    public void setNodesIndex(NodesIndexAPI nodesIndex) {
         this.nodesIndex = nodesIndex;
     }
 }

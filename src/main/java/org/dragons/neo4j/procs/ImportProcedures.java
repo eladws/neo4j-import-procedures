@@ -24,7 +24,7 @@ public class ImportProcedures {
 
     private static int totalNodesCount = 0;
     private static int totalEdgesCount = 0;
-    private static NodesIndex nodesIndex;
+    private static NodesIndexAPI nodesIndex;
 
     @Context
     public GraphDatabaseAPI graphDatabaseAPI;

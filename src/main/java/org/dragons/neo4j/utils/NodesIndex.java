@@ -6,14 +6,8 @@ import java.util.Map;
 /**
  * Created by Elad on 5/9/2017.
  */
-public class NodesIndex {
+public class NodesIndex implements NodesIndexAPI{
     Map<String, Map<Object, Long>> index = new HashMap<>();
-
-    public void addNodeType(String label) {
-        if(!index.containsKey(label)) {
-            index.put(label, new HashMap<>());
-        }
-    }
 
     public void addNodeToIndex(String label, Object property, long id) {
         if(!index.containsKey(label)) {
