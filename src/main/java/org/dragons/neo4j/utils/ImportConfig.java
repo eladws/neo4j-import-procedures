@@ -8,6 +8,7 @@ import java.util.List;
 public class ImportConfig {
     public String nodesParallelLevel;
     public String relsParallelLevel;
+    public boolean indexNodeIds;
     public List<NodeImportConfig> nodes;
     public List<RelationshipImportConfig> relationships;
 }

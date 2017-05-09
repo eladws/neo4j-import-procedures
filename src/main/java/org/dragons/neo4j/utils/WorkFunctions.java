@@ -42,33 +42,88 @@ public class WorkFunctions {
         String[] rowTokens = line.split(",");
 
         //Find endpoints and create the relationship
-        Node startNode = config.getGraphDatabaseAPI().findNode(Label.label(relImportConf.startNodeLabel), // node label
-                                                               relImportConf.startNodeMatchPropName, // the relevant property name
-                                                               config.getPropertiesMap().get("start").equals("int") ? // the property value that identifies the specific node
-                                                                            Integer.valueOf(rowTokens[relWorkConf.getStartMatchPropCol()]) :
-                                                                            rowTokens[relWorkConf.getStartMatchPropCol()]);
+        Node startNode = null;
 
-        if (startNode == null) {
-            config.getLog().warn("Failed creating relationship. Start node [:%s {%s=%s}] could not be found.",
-                    relImportConf.startNodeLabel,
-                    relImportConf.startNodeMatchPropName,
-                    rowTokens[relWorkConf.getStartMatchPropCol()]);
-            return FunctionResult.FAIL;
+        Object startIdProperty = config.getPropertiesMap().get("start").equals("int") ? // the property value that identifies the specific node
+                Integer.valueOf(rowTokens[relWorkConf.getStartMatchPropCol()]) :
+                rowTokens[relWorkConf.getStartMatchPropCol()];
+
+        //first, try to seek internal index
+        if (config.getNodesIndex() != null) {
+            long id = config.getNodesIndex().getNodeId(relImportConf.startNodeLabel, startIdProperty);
+            if (id >= 0) {
+                startNode = config.getGraphDatabaseAPI().getNodeById(id);
+                if (startNode == null) {
+                    //indexed node not found in db
+                    config.getLog().warn("Node (:%s {%s: %s}) not found in database. searched id: %d",
+                            relImportConf.startNodeLabel,
+                            relImportConf.startNodeMatchPropName,
+                            rowTokens[relWorkConf.getStartMatchPropCol()],
+                            id);
+                }
+            } else {
+                //node not found in index
+                config.getLog().warn("Node (:%s {%s: %s}) not found in index.",
+                        relImportConf.startNodeLabel,
+                        relImportConf.startNodeMatchPropName,
+                        rowTokens[relWorkConf.getStartMatchPropCol()]);
+            }
         }
 
-        Node endNode = config.getGraphDatabaseAPI().findNode(Label.label(relImportConf.endNodeLabel),
-                                                             relImportConf.endNodeMatchPropName,
-                                                             config.getPropertiesMap().get("end").equals("int") ?
-                                                                            Integer.valueOf(rowTokens[relWorkConf.getEndMatchPropCol()]) :
-                                                                            rowTokens[relWorkConf.getEndMatchPropCol()]);
+        if (startNode == null) {
+            //find the node using database api
+            startNode = config.getGraphDatabaseAPI().findNode(Label.label(relImportConf.startNodeLabel), // node label
+                                                                relImportConf.startNodeMatchPropName, // the relevant property name
+                                                                startIdProperty // the property value that identifies the specific node
+                                                               );
+            if (startNode == null) {
+                config.getLog().warn("Failed creating relationship. Start node (:%s {%s: %s}) could not be found.",
+                        relImportConf.startNodeLabel,
+                        relImportConf.startNodeMatchPropName,
+                        rowTokens[relWorkConf.getStartMatchPropCol()]);
+                return FunctionResult.FAIL;
+            }
+        }
 
+        Node endNode = null;
+        Object endIdProperty = config.getPropertiesMap().get("end").equals("int") ?
+                                        Integer.valueOf(rowTokens[relWorkConf.getEndMatchPropCol()]) :
+                                        rowTokens[relWorkConf.getEndMatchPropCol()];
+        if (config.getNodesIndex() != null) {
+            long id = config.getNodesIndex().getNodeId(relImportConf.endNodeLabel, endIdProperty);
+            if (id >= 0) {
+                endNode = config.getGraphDatabaseAPI().getNodeById(id);
+                if (endNode == null) {
+                    //indexed node not found in db
+                    config.getLog().warn("Node (:%s {%s: %s}) not found in database. searched id: %d",
+                            relImportConf.endNodeLabel,
+                            relImportConf.endNodeMatchPropName,
+                            rowTokens[relWorkConf.getEndMatchPropCol()],
+                            id);
+                }
+            } else {
+                //node not found in index
+                config.getLog().warn("Node (:%s {%s: %s}) not found in index.",
+                        relImportConf.endNodeLabel,
+                        relImportConf.endNodeMatchPropName,
+                        rowTokens[relWorkConf.getEndMatchPropCol()]);
+            }
+        }
 
         if (endNode == null) {
-            config.getLog().warn("Failed creating relationship. Start node [:%s {%s=%s}] could not be found.",
-                    relImportConf.endNodeLabel,
-                    relImportConf.endNodeMatchPropName,
-                    rowTokens[relWorkConf.getEndMatchPropCol()]);
-            return FunctionResult.FAIL;
+            //find the node using database api
+            endNode = config.getGraphDatabaseAPI().findNode(Label.label(relImportConf.endNodeLabel), // node label
+                    relImportConf.endNodeMatchPropName, // the relevant property name
+                    endIdProperty // the property value that identifies the specific node
+                    );
+
+            if (endNode == null) {
+                config.getLog().warn("Failed creating relationship. End node (:%s {%s: %s}) could not be found.",
+                        relImportConf.endNodeLabel,
+                        relImportConf.endNodeMatchPropName,
+                        rowTokens[relWorkConf.getEndMatchPropCol()]);
+                return FunctionResult.FAIL;
+            }
         }
 
         Relationship rel = startNode.createRelationshipTo(endNode, RelationshipType.withName(relImportConf.label));
@@ -104,8 +159,12 @@ public class WorkFunctions {
                 ) {
             if (config.getPropertiesMap().get(propName).equals("int")) {
                 node.setProperty(propName, Integer.valueOf(rowTokens[idx]));
-            } else {
+                } else {
                 node.setProperty(propName, rowTokens[idx]);
+            }
+            if(config.getNodesIndex() != null && propName.equals("id")) {
+                //TODO: currently the only indexed property is the "id" property
+                config.getNodesIndex().addNodeToIndex(config.baseImportConfig.label, node.getProperty(propName), node.getId());
             }
             idx++;
         }

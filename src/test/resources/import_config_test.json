@@ -1,27 +1,28 @@
 {
   "nodesParallelLevel" : "all",
-  "relsParallelLevel" : "in-group",
+  "relsParallelLevel" : "none",
+  "indexNodeIds" : "true",
   "nodes": [
     {
-      "rootDir": "C:/Dev/Github/neo4j-import-procedures/src/test/resources/data",
-      "namePattern": "**/person*",
+      "rootDir": "C:/Dev/Github/neo4j-import-procedures/src/test/resources",
+      "namePattern": "**/persons*",
       "label": "person",
-      "header": "id:int,name",
-      "skipFirst": false,
+      "header": "id:int,name:string,age:int",
+      "skipFirst": true,
       "indexedProps": []
     }
   ],
   "relationships": [
     {
-      "rootDir": "C:/Dev/Github/neo4j-import-procedures/src/test/resources/data",
-      "namePattern": "**/friend*",
-      "label": "friend",
+      "rootDir": "C:/Dev/Github/neo4j-import-procedures/src/test/resources",
+      "namePattern": "**/knows*",
+      "label": "knows",
       "startNodeLabel": "person",
       "startNodeMatchPropName": "id",
       "endNodeLabel": "person",
       "endNodeMatchPropName": "id",
-      "header": "start:int,end:int",
-      "skipFirst": false
+      "header": "start:int,end:int,since:string",
+      "skipFirst": true
     }
   ]
 }

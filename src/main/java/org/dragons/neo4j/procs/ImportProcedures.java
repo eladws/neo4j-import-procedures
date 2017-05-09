@@ -24,6 +24,7 @@ public class ImportProcedures {
 
     private static int totalNodesCount = 0;
     private static int totalEdgesCount = 0;
+    private static NodesIndex nodesIndex;
 
     @Context
     public GraphDatabaseAPI graphDatabaseAPI;
@@ -99,6 +100,10 @@ public class ImportProcedures {
 
             ImportConfig importConfig = om.readValue(jsonData, ImportConfig.class);
 
+            if(importConfig.indexNodeIds) {
+                nodesIndex = new NodesIndex();
+            }
+
             for (NodeImportConfig nic : importConfig.nodes) {
 
                 if(importConfig.nodesParallelLevel.equals("group")) {
@@ -130,7 +135,7 @@ public class ImportProcedures {
                 thread.join();
             }
 
-            log.info("Finished importing nodes: %d nodes were successfully imported in %.2f ms.",totalNodesCount, (System.nanoTime() - startTime) / 1000000);
+            log.info("Finished importing nodes: %d nodes (approx.) were successfully imported in %d ms.",totalNodesCount, (int)((System.nanoTime() - startTime) / 1000000));
 
             log.info("Starting relationships import...");
 
@@ -167,7 +172,7 @@ public class ImportProcedures {
                 thread.join();
             }
 
-            log.info("Finished importing edges: %d edges were successfully imported in %.2f ms.",totalEdgesCount, (System.nanoTime() - edgesStartTime) / 1000000);
+            log.info("Finished importing edges: %d edges (approx.) were successfully imported in %d ms.",totalEdgesCount, (int)((System.nanoTime() - edgesStartTime) / 1000000));
 
         } catch (Exception e) {
             log.error("Failed importing with configuration file " + configFilePath);
@@ -176,7 +181,7 @@ public class ImportProcedures {
 
         long endTime = System.nanoTime();
         long totalTime = (endTime - startTime) / 1000000;
-        log.info("Import summary: %d nodes, %d edges, total time: %.2f ms.", totalNodesCount, totalEdgesCount, totalTime);
+        log.info("Import summary: %d nodes, %d edges, total time: %d ms.", totalNodesCount, totalEdgesCount, totalTime);
     }
 
     private void loadRelsGroup(RelationshipImportConfig ric, boolean isParallel, int batchSize, List<Thread> relsThreads) {
@@ -239,7 +244,7 @@ public class ImportProcedures {
         workConfig.setBatchSize(batchSize);
         workConfig.setGraphDatabaseAPI(graphDatabaseAPI);
         workConfig.setLog(log);
-
+        workConfig.setNodesIndex(nodesIndex);
         batchLoadWithConfig(file, workConfig);
     }
 
@@ -249,6 +254,7 @@ public class ImportProcedures {
         workConfig.setBatchSize(batchSize);
         workConfig.setGraphDatabaseAPI(graphDatabaseAPI);
         workConfig.setLog(log);
+        workConfig.setNodesIndex(nodesIndex);
         batchLoadWithConfig(file, workConfig);
     }
 
@@ -316,12 +322,12 @@ public class ImportProcedures {
                         }
                         if (opsCount % 1000000 == 0) {
                             log.info("Loaded %d elements of type %s from file %s.", opsCount, config.getBaseImportConfig().label, file);
-                            log.info("Total count: %d nodes, %d edges.", totalNodesCount, totalEdgesCount);
+                            log.info("Total count (approx.): %d nodes, %d edges.", totalNodesCount, totalEdgesCount);
                         }
                     }
 
                 } catch (Exception ex) {
-                    log.warn("Exception in file: %s \nFailed processing %s record: %s\nException: %s\n%s",
+                    log.warn("Exception in file: %s%nFailed processing %s record: %s%nException: %s%n%s",
                             file,
                             config.getBaseImportConfig().label,
                             line,
@@ -332,7 +338,7 @@ public class ImportProcedures {
             }
 
         } catch (Exception e) {
-            log.error("Exception in file: %s\nException: %s\n%s", file, e, e.getMessage());
+            log.error("Exception in file: %s%nException: %s%n%s", file, e, e.getMessage());
         } finally {
             if (tx != null) {
                 tx.success();
