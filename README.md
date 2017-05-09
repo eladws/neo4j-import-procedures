@@ -36,6 +36,8 @@ Four options are available to control the behaviour of the import process:
   3. "in-group": The groups will be processed one after the other. The files inside each group will be processed in parallel.
   4. "all": All files will be processed in parallel (a thread for each file).
 
+Note that regardless of the chosen parallelism level, the program waits until all the nodes threads to finish before starting to import edges.
+
 **Example JSON configuration file**
 
 ```javascript
