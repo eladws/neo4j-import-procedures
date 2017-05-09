@@ -7,6 +7,24 @@ It can be used to update an existing online database.
 
 You can control the size of each transaction, and add indexing on the relevant properties to improve performance.
 
+## Parallelism options
+Parallelism options are defined separately for nodes and relationships.
+
+Four options are available to control the behaviour of the import process:
+  1. "none": No parallelism at all. A single thread will read all files sequentialy.
+  2. "group": A thread will be spawned for each nodes or relationships group. Within each group - the files will be processed           sequentialy.
+  3. "in-group": The groups will be processed one after the other. The files inside each group will be processed in parallel.
+  4. "all": All files will be processed in parallel (a thread for each file).
+
+Note that regardless of the chosen parallelism level, the program waits until all the nodes threads to finish before starting to import edges.
+
+## Nodes caching
+If the option "indexNodeIds" is set to true, the program will keep an in-memory index of Neo4j nodes ids by the respective "id" property of the given node.
+
+This way, when creating edges the only call to the Neo4j's API is to find nodes by their ids, which is much faster than trying to find a node by its "id" property value.
+
+If the desired nodes are not in the index (i.e. these nodes were imported by a previous process) the regulat API calls will be utilized to find the node.
+
 ## Usage:
 
 **Import nodes file:**
@@ -27,23 +45,13 @@ CALL org.dragons.neo4j.procs.loadRelationshipsFile('my_file.csv','myRelLabel','s
 CALL org.dragons.neo4j.procs.loadWithConfiguration('config_file.json',10000)
 ```
 
-## Parallelism options
-Parallelism options are defined separately for nodes and relationships.
-
-Four options are available to control the behaviour of the import process:
-  1. "none": No parallelism at all. A single thread will read all files sequentialy.
-  2. "group": A thread will be spawned for each nodes or relationships group. Within each group - the files will be processed           sequentialy.
-  3. "in-group": The groups will be processed one after the other. The files inside each group will be processed in parallel.
-  4. "all": All files will be processed in parallel (a thread for each file).
-
-Note that regardless of the chosen parallelism level, the program waits until all the nodes threads to finish before starting to import edges.
-
 **Example JSON configuration file**
 
 ```javascript
 {
   "nodesParallelLevel" : "all",
   "relsParallelLevel" : "in-group",
+  "indexNodeIds" : "true",
   "nodes": [
     {
       "rootDir": "C:/nodesData",
