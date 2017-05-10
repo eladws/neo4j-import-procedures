@@ -100,8 +100,23 @@ public class ImportProcedures {
 
             ImportConfig importConfig = om.readValue(jsonData, ImportConfig.class);
 
-            if(importConfig.indexNodeIds) {
-                nodesIndex = new NodesIndex();
+            if(importConfig.nodeIdsCache != null) {
+                switch (importConfig.nodeIdsCache) {
+                    case "internal":
+                        nodesIndex = new NodesIndex();
+                        break;
+                    case "redis":
+                        try {
+                            log.info("Connecting to local redis...");
+                            nodesIndex = new RedisNodesIndex();
+                            if(((RedisNodesIndex)nodesIndex).isOpen()) {
+                                log.info("Successfully connected to redis!");
+                            }
+                        } catch (Exception e) {
+                            log.warn("Failed connecting to redis.%nException: %s%n%s", e, e.getMessage());
+                        }
+                        break;
+                }
             }
 
             for (NodeImportConfig nic : importConfig.nodes) {
@@ -180,7 +195,7 @@ public class ImportProcedures {
         }
 
         long endTime = System.nanoTime();
-        long totalTime = (endTime - startTime) / 1000000;
+        long totalTime = (endTime - startTime   ) / 1000000;
         log.info("Import summary: %d nodes, %d edges, total time: %d ms.", totalNodesCount, totalEdgesCount, totalTime);
     }
 
