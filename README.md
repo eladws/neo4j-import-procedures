@@ -19,11 +19,16 @@ Four options are available to control the behaviour of the import process:
 Note that regardless of the chosen parallelism level, the program waits until all the nodes threads to finish before starting to import edges.
 
 ## Nodes caching
-If the option "indexNodeIds" is set to true, the program will keep an in-memory index of Neo4j nodes ids by the respective "id" property of the given node.
+The program offers a cache mechanism to keep an in-memory index of Neo4j nodes ids by the respective "id" property of the given node.
 
 This way, when creating edges the only call to the Neo4j's API is to find nodes by their ids, which is much faster than trying to find a node by its "id" property value.
 
 If the desired nodes are not in the index (i.e. these nodes were imported by a previous process) the regulat API calls will be utilized to find the node.
+
+Possible values for this parameter are:
+  1. "none": No caching.
+  2. "redis": A redis-based caching. This assumes you have a running redis server on your local machine (port 6379).
+  3. "in-memory": A simple java hash map object will be used for caching.
 
 ## Usage:
 
@@ -51,7 +56,7 @@ CALL org.dragons.neo4j.procs.loadWithConfiguration('config_file.json',10000)
 {
   "nodesParallelLevel" : "all",
   "relsParallelLevel" : "in-group",
-  "indexNodeIds" : "true",
+  "nodeIdsCache" : "redis",
   "nodes": [
     {
       "rootDir": "C:/nodesData",
