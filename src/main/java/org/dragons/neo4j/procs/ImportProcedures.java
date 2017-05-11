@@ -16,14 +16,18 @@ import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by eladw on 09/03/2017.
  */
 public class ImportProcedures {
 
-    private static int totalNodesCount = 0;
-    private static int totalEdgesCount = 0;
+    private static long totalNodesCount = 0;
+    private static long totalEdgesCount = 0;
     private static NodesIndexAPI nodesIndex;
 
     @Context
@@ -52,7 +56,6 @@ public class ImportProcedures {
         importConf.skipFirst = skipFirst;
         importConf.indexedProps = indexedProps;
         importConf.header = header;
-
         batchLoadNodes(file, importConf, (int) batchSize);
 
     }
@@ -79,7 +82,6 @@ public class ImportProcedures {
         importConf.startNodeMatchPropName = startNodeProp;
         importConf.endNodeMatchPropName = endNodeProp;
         importConf.header = header;
-
         batchLoadRelationships(file, importConf, (int) batchSize);
 
     }
@@ -92,63 +94,47 @@ public class ImportProcedures {
 
         try {
 
-            List<Thread> nodesThreads = new ArrayList<>();
-
             byte[] jsonData = Files.readAllBytes(Paths.get(configFilePath));
 
             ObjectMapper om = new ObjectMapper();
 
             ImportConfig importConfig = om.readValue(jsonData, ImportConfig.class);
 
+            int maxThreads = importConfig.maxThreads == 0 ? (Runtime.getRuntime().availableProcessors() / 2) : importConfig.maxThreads;
+
+            log.info("Max threads number set to: %d", maxThreads);
+
+            ThreadsExecutionType nodesExecutionType = getExecutionType(importConfig.nodesParallelLevel);
+
             if(importConfig.nodeIdsCache != null) {
-                switch (importConfig.nodeIdsCache) {
-                    case "internal":
-                        nodesIndex = new NodesIndex();
-                        break;
-                    case "redis":
-                        try {
-                            log.info("Connecting to local redis...");
-                            nodesIndex = new RedisNodesIndex();
-                            if(((RedisNodesIndex)nodesIndex).isOpen()) {
-                                log.info("Successfully connected to redis!");
-                            }
-                        } catch (Exception e) {
-                            log.warn("Failed connecting to redis.%nException: %s%n%s", e, e.getMessage());
-                        }
-                        break;
+                try {
+                    nodesIndex = getNodesIndex(importConfig.nodeIdsCache);
+                } catch (Exception e) {
+                    log.warn("Failed initializing cache of type %s.%n%s%n%s", importConfig.nodeIdsCache, e, e.getMessage());
                 }
             }
+
+            ThreadPoolService nodesThreadsPool = new ThreadPoolService(maxThreads);
 
             for (NodeImportConfig nic : importConfig.nodes) {
 
-                if(importConfig.nodesParallelLevel.equals("group")) {
+                if (nodesExecutionType == ThreadsExecutionType.GROUP) {
                     //spawn new thread for this nodes group. files inside this group will be imported sequentially.
-                   Thread groupThread = new Thread(() -> loadNodesGroup(nic, false, (int) batchSize, nodesThreads));
-                   groupThread.start();
-                   nodesThreads.add(groupThread);
+                    nodesThreadsPool.addTask(ThreadsExecutionType.GROUP, () -> loadNodesGroup(nic, (int) batchSize, null));
                 } else {
                     //groups will be ran sequentially.
                     //parallelism inside each group will occur if the configuration does not specify "none".
-                    boolean isParallel = importConfig.nodesParallelLevel.equals("in-group") ||
-                                         importConfig.nodesParallelLevel.equals("all");
+                    loadNodesGroup(nic, (int) batchSize, nodesThreadsPool.getExecutor(nodesExecutionType));
 
-                    loadNodesGroup(nic, isParallel, (int) batchSize, nodesThreads);
-
-                    if(!importConfig.nodesParallelLevel.equals("all")) {
-                        //wait for threads of this group to terminate before we continue to the next group
-                        for(Thread thread : nodesThreads) {
-                            thread.join();
-                        }
-                        nodesThreads.clear();
+                    //if the execution type is in-group, wait for all threads to complete
+                    if (nodesExecutionType == ThreadsExecutionType.IN_GROUP) {
+                        nodesThreadsPool.shutdownExecutor(ThreadsExecutionType.IN_GROUP);
                     }
                 }
-
             }
 
-            //Wait for all nodes to complete before starting edges import
-            for(Thread thread : nodesThreads) {
-                thread.join();
-            }
+            //wait for all nodes threads to finish
+            nodesThreadsPool.shutdownExecutor(nodesExecutionType);
 
             log.info("Finished importing nodes: %d nodes (approx.) were successfully imported in %d ms.",totalNodesCount, (int)((System.nanoTime() - startTime) / 1000000));
 
@@ -156,36 +142,29 @@ public class ImportProcedures {
 
             long edgesStartTime = System.nanoTime();
 
-            List<Thread> relsThreads = new ArrayList<>();
+            ThreadsExecutionType relsExecutionType = getExecutionType(importConfig.relsParallelLevel);
+
+            ThreadPoolService relsThreadsPool = new ThreadPoolService(maxThreads);
 
             for (RelationshipImportConfig ric : importConfig.relationships) {
 
-                if(importConfig.relsParallelLevel.equals("group")) {
+                if(relsExecutionType == ThreadsExecutionType.GROUP) {
                     //spawn new thread for this nodes group. files inside this group will be imported sequentially.
-                    Thread groupThread = new Thread(() -> loadRelsGroup(ric, false, (int) batchSize, relsThreads));
-                    groupThread.start();
-                    relsThreads.add(groupThread);
+                    relsThreadsPool.addTask(ThreadsExecutionType.GROUP,() -> loadRelsGroup(ric, (int) batchSize, null));
                 } else {
                     //groups will be ran sequentially.
                     //parallelism inside each group will occur if the configuration does not specify "none".
-                    boolean isParallel = importConfig.relsParallelLevel.equals("in-group") ||
-                                         importConfig.relsParallelLevel.equals("all");
-                    loadRelsGroup(ric, isParallel, (int) batchSize, relsThreads);
+                    loadRelsGroup(ric, (int) batchSize, relsThreadsPool.getExecutor(relsExecutionType));
 
-                    if(!importConfig.relsParallelLevel.equals("all")) {
-                        //wait for threads of this group to terminate before we continue to the next group
-                        for(Thread thread : relsThreads) {
-                            thread.join();
-                        }
-                        relsThreads.clear();
+                    if(relsExecutionType == ThreadsExecutionType.IN_GROUP) {
+                        //if the execution type is in-group, wait for all threads to complete
+                        relsThreadsPool.shutdownExecutor(relsExecutionType);
                     }
                 }
             }
 
             //Wait for all threads to complete
-            for(Thread thread : relsThreads) {
-                thread.join();
-            }
+            relsThreadsPool.shutdownExecutor(relsExecutionType);
 
             log.info("Finished importing edges: %d edges (approx.) were successfully imported in %d ms.",totalEdgesCount, (int)((System.nanoTime() - edgesStartTime) / 1000000));
 
@@ -199,7 +178,7 @@ public class ImportProcedures {
         log.info("Import summary: %d nodes, %d edges, total time: %d ms.", totalNodesCount, totalEdgesCount, totalTime);
     }
 
-    private void loadRelsGroup(RelationshipImportConfig ric, boolean isParallel, int batchSize, List<Thread> relsThreads) {
+    private void loadRelsGroup(RelationshipImportConfig ric, int batchSize, ExecutorService executor) {
 
         String[] files = getMatchingFiles(ric.rootDir, ric.namePattern);
 
@@ -210,17 +189,15 @@ public class ImportProcedures {
         for (String file :
                 files) {
 
-            if (isParallel) {
-                Thread fileThread = new Thread(() -> batchLoadRelationships(Paths.get(ric.rootDir, file).toString(), ric, batchSize));
-                fileThread.start();
-                relsThreads.add(fileThread);
+            if (executor != null) {
+                executor.execute(() -> batchLoadRelationships(Paths.get(ric.rootDir, file).toString(), ric, batchSize));
             } else {
                 batchLoadRelationships(Paths.get(ric.rootDir, file).toString(), ric, batchSize);
             }
         }
     }
 
-    private void loadNodesGroup(NodeImportConfig nic, boolean isParallel, int batchSize, List<Thread> nodesThreads) {
+    private void loadNodesGroup(NodeImportConfig nic, int batchSize, ExecutorService executor) {
 
         if(nic.indexedProps != null) {
             // Causes deadlocks in Neo4j. Uncomment when solved.
@@ -236,10 +213,8 @@ public class ImportProcedures {
 
         for (String file :
                 files) {
-            if (isParallel) {
-                Thread fileThread = new Thread(() -> batchLoadNodes(Paths.get(nic.rootDir, file).toString(), nic, batchSize));
-                fileThread.start();
-                nodesThreads.add(fileThread);
+            if (executor != null) {
+                executor.execute(() -> batchLoadNodes(Paths.get(nic.rootDir, file).toString(), nic, batchSize));
             } else {
                 batchLoadNodes(Paths.get(nic.rootDir, file).toString(), nic, batchSize);
             }
@@ -342,7 +317,7 @@ public class ImportProcedures {
                     }
 
                 } catch (Exception ex) {
-                    log.warn("Exception in file: %s%nFailed processing %s record: %s%nException: %s%n%s",
+                    log.warn("Exception in file: %s%nFailed processing %s record: %s%n: %s%n%s",
                             file,
                             config.getBaseImportConfig().label,
                             line,
@@ -353,7 +328,7 @@ public class ImportProcedures {
             }
 
         } catch (Exception e) {
-            log.error("Exception in file: %s%nException: %s%n%s", file, e, e.getMessage());
+            log.error("Exception in file: %s%n: %s%n%s", file, e, e.getMessage());
         } finally {
             if (tx != null) {
                 tx.success();
@@ -369,6 +344,32 @@ public class ImportProcedures {
         scanner.setIncludes(new String[]{pattern});
         scanner.scan();
         return scanner.getIncludedFiles();
+    }
+
+    private NodesIndexAPI getNodesIndex(String indexType) {
+        switch(indexType) {
+            case "redis":
+                return new RedisNodesIndex();
+            case "ignite":
+                return new IgniteNodesIndex();
+            default:
+                return new NodesIndex();
+        }
+    }
+
+    private ThreadsExecutionType getExecutionType(String value) {
+        switch (value) {
+            case "none":
+                return ThreadsExecutionType.NONE;
+            case "all":
+                return ThreadsExecutionType.ALL;
+            case "group":
+                return ThreadsExecutionType.GROUP;
+            case "in-group":
+                return ThreadsExecutionType.IN_GROUP;
+            default:
+                return ThreadsExecutionType.NONE;
+        }
     }
 
     private Map<String, String> buildPropertyTypeMap(String header) {

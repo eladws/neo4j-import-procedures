@@ -13,14 +13,14 @@ public class RedisNodesIndex implements NodesIndexAPI {
     private final String COMBINED_KEY_FORMAT = "%s_%s";
 
     public RedisNodesIndex() {
-        redisClient = RedisClient.create(RedisURI.create("redis://127.0.0.7:3679"));
+        redisClient = RedisClient.create(RedisURI.create("redis://127.0.0.1:6379"));
         redisConnection = redisClient.connect();
     }
 
     @Override
     public void addNodeToIndex(String label, Object idPropertyValue, long id) {
         if(redisConnection.isOpen()) {
-            redisConnection.async().set(getCombinedKey(label, idPropertyValue), getValue(idPropertyValue));
+            redisConnection.sync().set(getCombinedKey(label, idPropertyValue), getValue(idPropertyValue));
         }
     }
 

@@ -1,7 +1,8 @@
 {
   "nodesParallelLevel" : "all",
   "relsParallelLevel" : "none",
-  "nodeIdsCache" : "redis",
+  "nodeIdsCache" : "ignite",
+  "maxThreads" : 2,
   "nodes": [
     {
       "rootDir": "C:/Dev/Github/neo4j-import-procedures/src/test/resources",

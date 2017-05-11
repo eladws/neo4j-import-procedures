@@ -9,6 +9,7 @@ public class ImportConfig {
     public String nodesParallelLevel;
     public String relsParallelLevel;
     public String nodeIdsCache;
+    public int maxThreads;
     public List<NodeImportConfig> nodes;
     public List<RelationshipImportConfig> relationships;
 }
