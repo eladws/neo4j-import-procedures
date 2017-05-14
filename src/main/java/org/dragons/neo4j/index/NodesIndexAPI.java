@@ -1,4 +1,4 @@
-package org.dragons.neo4j.utils;
+package org.dragons.neo4j.index;
 
 /**
  * Created by Elad on 5/9/2017.

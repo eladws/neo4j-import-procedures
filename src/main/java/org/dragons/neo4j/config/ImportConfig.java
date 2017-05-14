@@ -1,4 +1,4 @@
-package org.dragons.neo4j.utils;
+package org.dragons.neo4j.config;
 
 import java.util.List;
 

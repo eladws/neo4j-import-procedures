@@ -2,6 +2,8 @@ package org.dragons.neo4j.procs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.tools.ant.DirectoryScanner;
+import org.dragons.neo4j.config.*;
+import org.dragons.neo4j.index.*;
 import org.dragons.neo4j.utils.*;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
@@ -16,10 +18,7 @@ import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Created by eladw on 09/03/2017.
@@ -28,7 +27,6 @@ public class ImportProcedures {
 
     private static long totalNodesCount = 0;
     private static long totalEdgesCount = 0;
-    private static NodesIndexAPI nodesIndex;
 
     @Context
     public GraphDatabaseAPI graphDatabaseAPI;
@@ -106,9 +104,10 @@ public class ImportProcedures {
 
             ThreadsExecutionType nodesExecutionType = getExecutionType(importConfig.nodesParallelLevel);
 
+            //initialize nodes index
             if(importConfig.nodeIdsCache != null) {
                 try {
-                    nodesIndex = getNodesIndex(importConfig.nodeIdsCache);
+                     NodesIndexMngr.initNodesIndex(importConfig.nodeIdsCache);
                 } catch (Exception e) {
                     log.warn("Failed initializing cache of type %s.%n%s%n%s", importConfig.nodeIdsCache, e, e.getMessage());
                 }
@@ -234,7 +233,6 @@ public class ImportProcedures {
         workConfig.setBatchSize(batchSize);
         workConfig.setGraphDatabaseAPI(graphDatabaseAPI);
         workConfig.setLog(log);
-        workConfig.setNodesIndex(nodesIndex);
         batchLoadWithConfig(file, workConfig);
     }
 
@@ -244,7 +242,6 @@ public class ImportProcedures {
         workConfig.setBatchSize(batchSize);
         workConfig.setGraphDatabaseAPI(graphDatabaseAPI);
         workConfig.setLog(log);
-        workConfig.setNodesIndex(nodesIndex);
         batchLoadWithConfig(file, workConfig);
     }
 
@@ -344,17 +341,6 @@ public class ImportProcedures {
         scanner.setIncludes(new String[]{pattern});
         scanner.scan();
         return scanner.getIncludedFiles();
-    }
-
-    private NodesIndexAPI getNodesIndex(String indexType) {
-        switch(indexType) {
-            case "redis":
-                return new RedisNodesIndex();
-            case "ignite":
-                return new IgniteNodesIndex();
-            default:
-                return new NodesIndex();
-        }
     }
 
     private ThreadsExecutionType getExecutionType(String value) {

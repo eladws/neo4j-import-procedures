@@ -1,6 +1,4 @@
-package org.dragons.neo4j.utils;
-
-import java.util.concurrent.BlockingQueue;
+package org.dragons.neo4j.config;
 
 /**
  * Created by Elad on 3/28/2017.

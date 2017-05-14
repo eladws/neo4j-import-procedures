@@ -1,4 +1,4 @@
-package org.dragons.neo4j.utils;
+package org.dragons.neo4j.config;
 
 /**
  * Created by Elad on 3/28/2017.

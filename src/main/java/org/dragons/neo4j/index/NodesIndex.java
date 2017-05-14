@@ -1,4 +1,4 @@
-package org.dragons.neo4j.utils;
+package org.dragons.neo4j.index;
 
 import java.util.HashMap;
 import java.util.Map;

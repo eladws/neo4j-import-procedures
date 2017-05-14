@@ -1,4 +1,4 @@
-package org.dragons.neo4j.utils;
+package org.dragons.neo4j.index;
 
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;

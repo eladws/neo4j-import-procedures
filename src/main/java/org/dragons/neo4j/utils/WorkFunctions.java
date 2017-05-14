@@ -1,5 +1,11 @@
 package org.dragons.neo4j.utils;
 
+import org.dragons.neo4j.config.GraphBatchWorkConfig;
+import org.dragons.neo4j.config.NodeBatchWorkConfig;
+import org.dragons.neo4j.config.RelationshipBatchWorkConfig;
+import org.dragons.neo4j.config.RelationshipImportConfig;
+import org.dragons.neo4j.index.NodesIndexAPI;
+import org.dragons.neo4j.index.NodesIndexMngr;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Relationship;
@@ -38,7 +44,7 @@ public class WorkFunctions {
 
         RelationshipBatchWorkConfig relWorkConf = (RelationshipBatchWorkConfig) config;
         RelationshipImportConfig relImportConf = (RelationshipImportConfig) config.getBaseImportConfig();
-
+        NodesIndexAPI index = NodesIndexMngr.getNodesIndex();
         String[] rowTokens = line.split(",");
 
         //Find endpoints and create the relationship
@@ -49,8 +55,8 @@ public class WorkFunctions {
                 rowTokens[relWorkConf.getStartMatchPropCol()];
 
         //first, try to seek internal index
-        if (config.getNodesIndex() != null) {
-            long id = config.getNodesIndex().getNodeId(relImportConf.startNodeLabel, startIdProperty);
+        if (index != null) {
+            long id = index.getNodeId(relImportConf.startNodeLabel, startIdProperty);
             if (id >= 0) {
                 startNode = config.getGraphDatabaseAPI().getNodeById(id);
                 if (startNode == null) {
@@ -89,8 +95,8 @@ public class WorkFunctions {
         Object endIdProperty = config.getPropertiesMap().get("end").equals("int") ?
                                         Integer.valueOf(rowTokens[relWorkConf.getEndMatchPropCol()]) :
                                         rowTokens[relWorkConf.getEndMatchPropCol()];
-        if (config.getNodesIndex() != null) {
-            long id = config.getNodesIndex().getNodeId(relImportConf.endNodeLabel, endIdProperty);
+        if (index != null) {
+            long id = index.getNodeId(relImportConf.endNodeLabel, endIdProperty);
             if (id >= 0) {
                 endNode = config.getGraphDatabaseAPI().getNodeById(id);
                 if (endNode == null) {
@@ -150,7 +156,9 @@ public class WorkFunctions {
         String[] rowTokens = line.split(",");
 
         //create the node, and set all properties
-        Node node = config.getGraphDatabaseAPI().createNode(Label.label(config.baseImportConfig.label));
+        Node node = config.getGraphDatabaseAPI().createNode(Label.label(config.getBaseImportConfig().label));
+
+        NodesIndexAPI index = NodesIndexMngr.getNodesIndex();
 
         int idx = 0;
 
@@ -162,9 +170,9 @@ public class WorkFunctions {
                 } else {
                 node.setProperty(propName, rowTokens[idx]);
             }
-            if(config.getNodesIndex() != null && propName.equals("id")) {
-                //TODO: currently the only indexed property is the "id" property
-                config.getNodesIndex().addNodeToIndex(config.baseImportConfig.label, node.getProperty(propName), node.getId());
+            if(index != null && propName.equals("id")) {
+                //TODO: currently the only indexed property is the "id" property (hard-coded)
+                index.addNodeToIndex(config.getBaseImportConfig().label, node.getProperty(propName), node.getId());
             }
             idx++;
         }

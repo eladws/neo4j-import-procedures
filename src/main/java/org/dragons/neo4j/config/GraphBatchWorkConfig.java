@@ -1,4 +1,4 @@
-package org.dragons.neo4j.utils;
+package org.dragons.neo4j.config;
 
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.logging.Log;
@@ -10,12 +10,11 @@ import java.util.Map;
  */
 public abstract class GraphBatchWorkConfig {
 
-    protected BaseImportConfig baseImportConfig;
+    private BaseImportConfig baseImportConfig;
     protected int batchSize;
     protected Map<String, String> propertiesMap;
     protected GraphDatabaseAPI graphDatabaseAPI;
     protected Log log;
-    private NodesIndexAPI nodesIndex;
 
     public BaseImportConfig getBaseImportConfig() {
         return baseImportConfig;
@@ -65,11 +64,4 @@ public abstract class GraphBatchWorkConfig {
         return sb.toString();
     }
 
-    public NodesIndexAPI getNodesIndex() {
-        return nodesIndex;
-    }
-
-    public void setNodesIndex(NodesIndexAPI nodesIndex) {
-        this.nodesIndex = nodesIndex;
-    }
 }

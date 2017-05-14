@@ -1,5 +1,7 @@
 package org.dragons.neo4j.utils;
 
+import org.dragons.neo4j.config.ThreadsExecutionType;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
