@@ -57,6 +57,7 @@ CALL org.dragons.neo4j.procs.loadWithConfiguration('config_file.json',10000)
   "nodesParallelLevel" : "all",
   "relsParallelLevel" : "in-group",
   "nodeIdsCache" : "redis",
+  "maxThreads" : 12
   "nodes": [
     {
       "rootDir": "C:/nodesData",
