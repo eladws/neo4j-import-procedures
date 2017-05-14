@@ -32,6 +32,8 @@ Possible values for this parameter are:
   2. "redis": A redis-based caching. This assumes you have a running redis server on your local machine (port 6379).
   3. "in-memory": A simple java hash map object will be used for caching.
   4. "ignite": An ignite-based index. 
+  
+Currently, the ignite index seems to perform best.
 
 ## Usage:
 
