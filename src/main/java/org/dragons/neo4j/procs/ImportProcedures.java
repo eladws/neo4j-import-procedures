@@ -27,10 +27,14 @@ public class ImportProcedures {
 
     private static long totalNodesCount = 0;
     private static long totalEdgesCount = 0;
+    private static long globalStartTime = 0;
+    private static long edgesStartTime = 0;
 
+    @SuppressWarnings("WeakerAccess")
     @Context
     public GraphDatabaseAPI graphDatabaseAPI;
 
+    @SuppressWarnings("WeakerAccess")
     @Context
     public Log log;
 
@@ -88,7 +92,7 @@ public class ImportProcedures {
     public void loadWithConfiguration(@Name("Configuration file") String configFilePath,
                                       @Name("Batch size for a single transaction") long batchSize) {
 
-        long startTime = System.nanoTime();
+        globalStartTime = System.nanoTime();
 
         try {
 
@@ -109,7 +113,11 @@ public class ImportProcedures {
                 try {
                      NodesIndexMngr.initNodesIndex(importConfig.nodeIdsCache);
                 } catch (Exception e) {
-                    log.warn("Failed initializing cache of type %s.%n%s%n%s", importConfig.nodeIdsCache, e, e.getMessage());
+                    log.warn("Failed initializing cache of type %s.%n%s%n%s%n%s",
+                                                    importConfig.nodeIdsCache,
+                                                    e,
+                                                    e.getMessage(),
+                                                    e.getStackTrace());
                 }
             }
 
@@ -135,11 +143,9 @@ public class ImportProcedures {
             //wait for all nodes threads to finish
             nodesThreadsPool.shutdownExecutor(nodesExecutionType);
 
-            log.info("Finished importing nodes: %d nodes (approx.) were successfully imported in %d ms.",totalNodesCount, (int)((System.nanoTime() - startTime) / 1000000));
+            log.info("Finished importing nodes: %d nodes (approx.) were successfully imported in %d ms.",totalNodesCount, getElapsedTime());
 
             log.info("Starting relationships import...");
-
-            long edgesStartTime = System.nanoTime();
 
             ThreadsExecutionType relsExecutionType = getExecutionType(importConfig.relsParallelLevel);
 
@@ -165,16 +171,19 @@ public class ImportProcedures {
             //Wait for all threads to complete
             relsThreadsPool.shutdownExecutor(relsExecutionType);
 
-            log.info("Finished importing edges: %d edges (approx.) were successfully imported in %d ms.",totalEdgesCount, (int)((System.nanoTime() - edgesStartTime) / 1000000));
+            log.info("Finished importing edges: %d edges (approx.) were successfully imported in %d ms.",totalEdgesCount, getEdgesElapsedTime());
 
         } catch (Exception e) {
-            log.error("Failed importing with configuration file " + configFilePath);
-            log.error("Failed with exception %s: %s", e, e.getMessage());
+            log.warn("Failed importing with configuration file " + configFilePath);
+            log.warn("Failed with exception %s: %s%n%s",
+                                                        e,
+                                                        e.getMessage(),
+                                                        Arrays.toString(e.getStackTrace()));
         }
 
-        long endTime = System.nanoTime();
-        long totalTime = (endTime - startTime   ) / 1000000;
-        log.info("Import summary: %d nodes, %d edges, total time: %d ms.", totalNodesCount, totalEdgesCount, totalTime);
+        log.info("Import summary: %d nodes, %d edges, total time: %d ms.", totalNodesCount, totalEdgesCount, getElapsedTime());
+        log.info("Nodes import rate: %d nodes per second", getNodesRate());
+        log.info("Edges import rate: %d edges per second", getEdgesRate());
     }
 
     private void loadRelsGroup(RelationshipImportConfig ric, int batchSize, ExecutorService executor) {
@@ -300,32 +309,39 @@ public class ImportProcedures {
                     //apply function to current element
                     WorkFunctions.FunctionResult result = wf.getFunction(config.getClass()).apply(line, config);
 
-                    if(result == WorkFunctions.FunctionResult.SUCCESS) {
+                    if (result == WorkFunctions.FunctionResult.SUCCESS) {
                         opsCount++;
-                        if(config.getBaseImportConfig().getClass().equals(NodeImportConfig.class)) {
+                        if (config.getBaseImportConfig().getClass().equals(NodeImportConfig.class)) {
                             totalNodesCount++;
                         } else {
                             totalEdgesCount++;
                         }
-                        if (opsCount % 1000000 == 0) {
+                        if (opsCount % 10000000 == 0) {
                             log.info("Loaded %d elements of type %s from file %s.", opsCount, config.getBaseImportConfig().label, file);
                             log.info("Total count (approx.): %d nodes, %d edges.", totalNodesCount, totalEdgesCount);
+                            log.info("Current rate: %d nodes per second, %d edges per second.",
+                                    totalNodesCount,
+                                    totalEdgesCount,
+                                    getNodesRate(),
+                                    getEdgesRate());
                         }
                     }
 
                 } catch (Exception ex) {
-                    log.warn("Exception in file: %s%nFailed processing %s record: %s%n: %s%n%s",
-                            file,
-                            config.getBaseImportConfig().label,
-                            line,
-                            ex,
-                            ex.getMessage());
+                    log.debug("Exception in file: %s%nFailed processing %s record: %s%n: %s%n%s%n%s",
+                                file,
+                                config.getBaseImportConfig().label,
+                                line,
+                                ex,
+                                ex.getMessage(),
+                                Arrays.toString(ex.getStackTrace()));
                 }
 
             }
 
         } catch (Exception e) {
-            log.error("Exception in file: %s%n: %s%n%s", file, e, e.getMessage());
+            log.warn("Exception in file: %s%n: %s%n%s%n%s", file, e, e.getMessage(),
+                                                            Arrays.toString(e.getStackTrace()));
         } finally {
             if (tx != null) {
                 tx.success();
@@ -376,4 +392,19 @@ public class ImportProcedures {
 
     }
 
+    private static long getElapsedTime() {
+        return (System.nanoTime() - globalStartTime) / 1000000;
+    }
+
+    private static long getEdgesElapsedTime() {
+        return (System.nanoTime() - edgesStartTime) / 1000000;
+    }
+
+    private static long getNodesRate() {
+        return totalNodesCount / (getElapsedTime() - getEdgesElapsedTime());
+    }
+
+    private static long getEdgesRate() {
+        return totalNodesCount / getEdgesElapsedTime();
+    }
 }

@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Created by Elad on 3/28/2017.
+ * Created by eladw on 3/28/2017.
  */
 public class WorkFunctions {
 
@@ -26,13 +26,13 @@ public class WorkFunctions {
 
     public enum FunctionResult{FAIL, SUCCESS}
 
-    public static Map<Class, WorkFunc<String, GraphBatchWorkConfig, FunctionResult>> functionMap;
+    private static Map<Class, WorkFunc<String, GraphBatchWorkConfig, FunctionResult>> functionMap;
 
     public WorkFunctions() {
 
         functionMap = new HashMap<>();
-        functionMap.put(NodeBatchWorkConfig.class, (line, config) -> createNode(line, config));
-        functionMap.put(RelationshipBatchWorkConfig.class,(line, config)->createRelationShip(line, config));
+        functionMap.put(NodeBatchWorkConfig.class, this::createNode);
+        functionMap.put(RelationshipBatchWorkConfig.class, this::createRelationShip);
     }
 
     public WorkFunc<String, GraphBatchWorkConfig, FunctionResult> getFunction(Class cls) {
@@ -61,7 +61,7 @@ public class WorkFunctions {
                 startNode = config.getGraphDatabaseAPI().getNodeById(id);
                 if (startNode == null) {
                     //indexed node not found in db
-                    config.getLog().warn("Node (:%s {%s: %s}) not found in database. searched id: %d",
+                    config.getLog().debug("Node (:%s {%s: %s}) not found in database. searched id: %d",
                             relImportConf.startNodeLabel,
                             relImportConf.startNodeMatchPropName,
                             rowTokens[relWorkConf.getStartMatchPropCol()],
@@ -69,7 +69,7 @@ public class WorkFunctions {
                 }
             } else {
                 //node not found in index
-                config.getLog().warn("Node (:%s {%s: %s}) not found in index.",
+                config.getLog().debug("Node (:%s {%s: %s}) not found in index.",
                         relImportConf.startNodeLabel,
                         relImportConf.startNodeMatchPropName,
                         rowTokens[relWorkConf.getStartMatchPropCol()]);
@@ -83,7 +83,7 @@ public class WorkFunctions {
                                                                 startIdProperty // the property value that identifies the specific node
                                                                );
             if (startNode == null) {
-                config.getLog().warn("Failed creating relationship. Start node (:%s {%s: %s}) could not be found.",
+                config.getLog().debug("Failed creating relationship. Start node (:%s {%s: %s}) could not be found.",
                         relImportConf.startNodeLabel,
                         relImportConf.startNodeMatchPropName,
                         rowTokens[relWorkConf.getStartMatchPropCol()]);
@@ -101,7 +101,7 @@ public class WorkFunctions {
                 endNode = config.getGraphDatabaseAPI().getNodeById(id);
                 if (endNode == null) {
                     //indexed node not found in db
-                    config.getLog().warn("Node (:%s {%s: %s}) not found in database. searched id: %d",
+                    config.getLog().debug("Node (:%s {%s: %s}) not found in database. searched id: %d",
                             relImportConf.endNodeLabel,
                             relImportConf.endNodeMatchPropName,
                             rowTokens[relWorkConf.getEndMatchPropCol()],
@@ -109,7 +109,7 @@ public class WorkFunctions {
                 }
             } else {
                 //node not found in index
-                config.getLog().warn("Node (:%s {%s: %s}) not found in index.",
+                config.getLog().debug("Node (:%s {%s: %s}) not found in index.",
                         relImportConf.endNodeLabel,
                         relImportConf.endNodeMatchPropName,
                         rowTokens[relWorkConf.getEndMatchPropCol()]);
@@ -124,7 +124,7 @@ public class WorkFunctions {
                     );
 
             if (endNode == null) {
-                config.getLog().warn("Failed creating relationship. End node (:%s {%s: %s}) could not be found.",
+                config.getLog().debug("Failed creating relationship. End node (:%s {%s: %s}) could not be found.",
                         relImportConf.endNodeLabel,
                         relImportConf.endNodeMatchPropName,
                         rowTokens[relWorkConf.getEndMatchPropCol()]);
