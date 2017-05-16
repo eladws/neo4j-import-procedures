@@ -18,6 +18,8 @@ Four options are available to control the behaviour of the import process:
 
 Note that regardless of the chosen parallelism level, the program waits until all the nodes threads to finish before starting to import edges.
 
+The number of threads can be limited by the "maxThreads" parameter. If this value is not given, the default number of threads will be half the number of available cores.
+
 ## Nodes caching
 The program offers a cache mechanism to keep an in-memory index of Neo4j nodes ids by the respective "id" property of the given node.
 
@@ -29,6 +31,9 @@ Possible values for this parameter are:
   1. "none": No caching.
   2. "redis": A redis-based caching. This assumes you have a running redis server on your local machine (port 6379).
   3. "in-memory": A simple java hash map object will be used for caching.
+  4. "ignite": An ignite-based index. 
+  
+Currently, the ignite index seems to perform best.
 
 ## Usage:
 
