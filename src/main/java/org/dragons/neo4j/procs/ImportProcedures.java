@@ -393,7 +393,11 @@ public class ImportProcedures {
     }
 
     private static long getEdgesElapsedTime() {
-        return (System.nanoTime() - edgesStartTime) / 1000000;
+        if(edgesStartTime == 0) {
+            return 0;
+        } else {
+            return (System.nanoTime() - edgesStartTime) / 1000000;
+        }
     }
 
     private static long getNodesRate() {
@@ -401,6 +405,10 @@ public class ImportProcedures {
     }
 
     private static long getEdgesRate() {
-        return totalNodesCount / getEdgesElapsedTime();
+        if (getEdgesElapsedTime() == 0) {
+            return 0;
+        } else {
+            return totalEdgesCount / getEdgesElapsedTime();
+        }
     }
 }

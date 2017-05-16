@@ -16,8 +16,11 @@ public class NodesIndexMngr {
                 index = new RedisNodesIndex();
             case "ignite":
                 index = new IgniteNodesIndex();
-            default:
+            case "internal":
                 index = new NodesIndex();
+            default:
+                //no indexing
+                index = null;
         }
     }
 
