@@ -143,7 +143,7 @@ public class ImportProcedures {
             //wait for all nodes threads to finish
             nodesThreadsPool.shutdownExecutor(nodesExecutionType);
 
-            log.info("Finished importing nodes: %d nodes (approx.) were successfully imported in %d ms.",totalNodesCount, getElapsedTime());
+            log.info("Finished importing nodes: %d nodes (approx.) were successfully imported in %d ms.",totalNodesCount, getElapsedTimeSeconds());
 
             log.info("Starting relationships import...");
 
@@ -171,7 +171,7 @@ public class ImportProcedures {
             //Wait for all threads to complete
             relsThreadsPool.shutdownExecutor(relsExecutionType);
 
-            log.info("Finished importing edges: %d edges (approx.) were successfully imported in %d ms.",totalEdgesCount, getEdgesElapsedTime());
+            log.info("Finished importing edges: %d edges (approx.) were successfully imported in %d ms.",totalEdgesCount, getEdgesElapsedTimeSeconds());
 
         } catch (Exception e) {
             log.warn("Failed importing with configuration file " + configFilePath);
@@ -181,7 +181,7 @@ public class ImportProcedures {
                                                         Arrays.toString(e.getStackTrace()));
         }
 
-        log.info("Import summary: %d nodes, %d edges, total time: %d ms.", totalNodesCount, totalEdgesCount, getElapsedTime());
+        log.info("Import summary: %d nodes, %d edges, total time: %d ms.", totalNodesCount, totalEdgesCount, getElapsedTimeSeconds());
         log.info("Nodes import rate: %d nodes per second", getNodesRate());
         log.info("Edges import rate: %d edges per second", getEdgesRate());
     }
@@ -388,27 +388,27 @@ public class ImportProcedures {
 
     }
 
-    private static long getElapsedTime() {
-        return (System.nanoTime() - globalStartTime) / 1000000;
+    private static long getElapsedTimeSeconds() {
+        return (System.nanoTime() - globalStartTime) / 1000000000;
     }
 
-    private static long getEdgesElapsedTime() {
+    private static long getEdgesElapsedTimeSeconds() {
         if(edgesStartTime == 0) {
             return 0;
         } else {
-            return (System.nanoTime() - edgesStartTime) / 1000000;
+            return (System.nanoTime() - edgesStartTime) / 1000000000;
         }
     }
 
     private static long getNodesRate() {
-        return totalNodesCount / (getElapsedTime() - getEdgesElapsedTime());
+        return totalNodesCount / (getElapsedTimeSeconds() - getEdgesElapsedTimeSeconds());
     }
 
     private static long getEdgesRate() {
-        if (getEdgesElapsedTime() == 0) {
+        if (getEdgesElapsedTimeSeconds() == 0) {
             return 0;
         } else {
-            return totalEdgesCount / getEdgesElapsedTime();
+            return totalEdgesCount / getEdgesElapsedTimeSeconds();
         }
     }
 }

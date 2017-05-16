@@ -45,6 +45,7 @@ public class WorkFunctions {
         RelationshipBatchWorkConfig relWorkConf = (RelationshipBatchWorkConfig) config;
         RelationshipImportConfig relImportConf = (RelationshipImportConfig) config.getBaseImportConfig();
         NodesIndexAPI index = NodesIndexMngr.getNodesIndex();
+
         String[] rowTokens = line.split(",");
 
         //Find endpoints and create the relationship
@@ -57,6 +58,7 @@ public class WorkFunctions {
         //first, try to seek internal index
         if (index != null) {
             long id = index.getNodeId(relImportConf.startNodeLabel, startIdProperty);
+
             if (id >= 0) {
                 startNode = config.getGraphDatabaseAPI().getNodeById(id);
                 if (startNode == null) {

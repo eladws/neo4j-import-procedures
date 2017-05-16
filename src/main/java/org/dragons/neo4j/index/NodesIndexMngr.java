@@ -14,13 +14,17 @@ public class NodesIndexMngr {
         switch(indexConfig) {
             case "redis":
                 index = new RedisNodesIndex();
+                break;
             case "ignite":
                 index = new IgniteNodesIndex();
+                break;
             case "internal":
                 index = new NodesIndex();
+                break;
             default:
                 //no indexing
                 index = null;
+                break;
         }
     }
 
