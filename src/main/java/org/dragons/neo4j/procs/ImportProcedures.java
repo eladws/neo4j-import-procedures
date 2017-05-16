@@ -319,11 +319,7 @@ public class ImportProcedures {
                         if (opsCount % 10000000 == 0) {
                             log.info("Loaded %d elements of type %s from file %s.", opsCount, config.getBaseImportConfig().label, file);
                             log.info("Total count (approx.): %d nodes, %d edges.", totalNodesCount, totalEdgesCount);
-                            log.info("Current rate: %d nodes per second, %d edges per second.",
-                                    totalNodesCount,
-                                    totalEdgesCount,
-                                    getNodesRate(),
-                                    getEdgesRate());
+                            log.info("Current rate: %d nodes per second, %d edges per second.",getNodesRate(),getEdgesRate());
                         }
                     }
 
