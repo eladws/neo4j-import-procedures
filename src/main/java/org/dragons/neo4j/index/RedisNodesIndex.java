@@ -36,6 +36,11 @@ public class RedisNodesIndex implements NodesIndexAPI {
         return -1;
     }
 
+    @Override
+    public void persist() {
+        //TODO: wait for all data to flush
+    }
+
     private String getValue(Object value) {
         return value.toString();
     }

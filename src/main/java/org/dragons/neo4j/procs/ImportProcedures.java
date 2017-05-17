@@ -145,7 +145,20 @@ public class ImportProcedures {
 
             log.info("Finished importing nodes: %d nodes (approx.) were successfully imported in %d ms.",totalNodesCount, getElapsedTimeSeconds());
 
+            if(NodesIndexMngr.getNodesIndex() != null) {
+                log.info("Flushing nodes index...");
+                try {
+                    NodesIndexMngr.getNodesIndex().persist();
+                    log.info("Flushing nodes index completed successfully.");
+                } catch (Exception e) {
+                    log.info("Flushing nodes index failed with exception %s%n%s%n%s%n",e,e.getMessage(),e.getStackTrace());
+                }
+
+            }
+
             log.info("Starting relationships import...");
+
+            edgesStartTime = System.nanoTime();
 
             ThreadsExecutionType relsExecutionType = getExecutionType(importConfig.relsParallelLevel);
 

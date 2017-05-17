@@ -6,4 +6,5 @@ package org.dragons.neo4j.index;
 public interface NodesIndexAPI {
     void addNodeToIndex(String label, Object idPropertyValue, long id);
     long getNodeId(String label, Object idPropertyValue);
+    void persist();
 }
