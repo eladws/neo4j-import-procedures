@@ -18,6 +18,11 @@ public class RedisNodesIndex implements NodesIndexAPI {
     }
 
     @Override
+    public void prepareIndex(String label) {
+        //nothing to do for redis (all labels are in the same index)
+    }
+
+    @Override
     public void addNodeToIndex(String label, Object idPropertyValue, long id) {
         if(redisConnection.isOpen()) {
             redisConnection.sync().set(getCombinedKey(label, idPropertyValue), getValue(idPropertyValue));

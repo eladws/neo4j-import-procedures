@@ -23,21 +23,27 @@ public class IgniteNodesIndex implements NodesIndexAPI {
     }
 
     @Override
-    public void addNodeToIndex(String label, Object idPropertyValue, long id) {
+    public synchronized void prepareIndex(String label) {
         if(!streamers.containsKey(label)) {
-            //create new streamer
             ignite.getOrCreateCache(label);
             IgniteDataStreamer<String, Long> streamer = ignite.dataStreamer(label);
             streamer.perNodeBufferSize(10000);
             streamers.put(label, streamer);
         }
-        //add data to streamer
+    }
+
+    @Override
+    public void addNodeToIndex(String label, Object idPropertyValue, long id) {
+        //add data to the relevant streamer
         streamers.get(label).addData(idPropertyValue.toString(), id);
     }
 
     @Override
     public long getNodeId(String label, Object idPropertyValue) {
         IgniteCache<String, Long> labelCache = ignite.getOrCreateCache(label);
+        if(labelCache == null) {
+            return -1;
+        }
         return labelCache.get(idPropertyValue.toString());
     }
 
@@ -45,7 +51,7 @@ public class IgniteNodesIndex implements NodesIndexAPI {
     public void persist() {
         for (IgniteDataStreamer s :
                 streamers.values()) {
-            s.close();
+            s.flush();
         }
     }
 }

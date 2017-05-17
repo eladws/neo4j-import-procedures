@@ -143,18 +143,17 @@ public class ImportProcedures {
             //wait for all nodes threads to finish
             nodesThreadsPool.shutdownExecutor(nodesExecutionType);
 
-            log.info("Finished importing nodes: %d nodes (approx.) were successfully imported in %d ms.",totalNodesCount, getElapsedTimeSeconds());
-
             if(NodesIndexMngr.getNodesIndex() != null) {
                 log.info("Flushing nodes index...");
                 try {
                     NodesIndexMngr.getNodesIndex().persist();
                     log.info("Flushing nodes index completed successfully.");
                 } catch (Exception e) {
-                    log.info("Flushing nodes index failed with exception %s%n%s%n%s%n",e,e.getMessage(),e.getStackTrace());
+                    log.info("Flushing nodes index failed with exception %s%n%s%n%s%n", e, e.getMessage(), e.getStackTrace());
                 }
-
             }
+
+            log.info("Finished importing nodes: %d nodes (approx.) were successfully imported in %d ms.",totalNodesCount, getElapsedTimeSeconds());
 
             log.info("Starting relationships import...");
 
@@ -225,6 +224,9 @@ public class ImportProcedures {
             log.info("ImportProcedures: Creating indices is not supported in this version. Create the indices manually before starting the import.");
             // createIndexes(nic.label, nic.indexedProps);
         }
+
+        //prepare nodes index fo that group
+        NodesIndexMngr.getNodesIndex().prepareIndex(nic.label);
 
         String[] files = getMatchingFiles(nic.rootDir, nic.namePattern);
 
