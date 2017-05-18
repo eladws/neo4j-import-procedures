@@ -49,7 +49,7 @@ public class WorkFunctions {
         String[] rowTokens = line.split(",");
 
         //Find endpoints and create the relationship
-        Node startNode = null;
+        Node startNode;
 
         Object startIdProperty = config.getPropertiesMap().get("start").equals("int") ? // the property value that identifies the specific node
                 Integer.valueOf(rowTokens[relWorkConf.getStartMatchPropCol()]) :
@@ -68,6 +68,7 @@ public class WorkFunctions {
                             relImportConf.startNodeMatchPropName,
                             rowTokens[relWorkConf.getStartMatchPropCol()],
                             id);
+                    return FunctionResult.FAIL;
                 }
             } else {
                 //node not found in index
@@ -75,15 +76,14 @@ public class WorkFunctions {
                         relImportConf.startNodeLabel,
                         relImportConf.startNodeMatchPropName,
                         rowTokens[relWorkConf.getStartMatchPropCol()]);
+                return FunctionResult.FAIL;
             }
-        }
-
-        if (startNode == null) {
+        } else {
             //find the node using database api
             startNode = config.getGraphDatabaseAPI().findNode(Label.label(relImportConf.startNodeLabel), // node label
-                                                                relImportConf.startNodeMatchPropName, // the relevant property name
-                                                                startIdProperty // the property value that identifies the specific node
-                                                               );
+                    relImportConf.startNodeMatchPropName, // the relevant property name
+                    startIdProperty // the property value that identifies the specific node
+            );
             if (startNode == null) {
                 config.getLog().debug("Failed creating relationship. Start node (:%s {%s: %s}) could not be found.",
                         relImportConf.startNodeLabel,
@@ -93,7 +93,8 @@ public class WorkFunctions {
             }
         }
 
-        Node endNode = null;
+        Node endNode;
+
         Object endIdProperty = config.getPropertiesMap().get("end").equals("int") ?
                                         Integer.valueOf(rowTokens[relWorkConf.getEndMatchPropCol()]) :
                                         rowTokens[relWorkConf.getEndMatchPropCol()];
@@ -108,6 +109,7 @@ public class WorkFunctions {
                             relImportConf.endNodeMatchPropName,
                             rowTokens[relWorkConf.getEndMatchPropCol()],
                             id);
+                    return FunctionResult.FAIL;
                 }
             } else {
                 //node not found in index
@@ -115,15 +117,14 @@ public class WorkFunctions {
                         relImportConf.endNodeLabel,
                         relImportConf.endNodeMatchPropName,
                         rowTokens[relWorkConf.getEndMatchPropCol()]);
+                return FunctionResult.FAIL;
             }
-        }
-
-        if (endNode == null) {
+        }else {
             //find the node using database api
             endNode = config.getGraphDatabaseAPI().findNode(Label.label(relImportConf.endNodeLabel), // node label
                     relImportConf.endNodeMatchPropName, // the relevant property name
                     endIdProperty // the property value that identifies the specific node
-                    );
+            );
 
             if (endNode == null) {
                 config.getLog().debug("Failed creating relationship. End node (:%s {%s: %s}) could not be found.",

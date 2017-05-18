@@ -44,7 +44,11 @@ public class IgniteNodesIndex implements NodesIndexAPI {
         if(labelCache == null) {
             return -1;
         }
-        return labelCache.get(idPropertyValue.toString());
+        Long nodeId = labelCache.get(idPropertyValue.toString());
+        if(nodeId == null) {
+            return -1;
+        }
+        return nodeId.longValue();
     }
 
     @Override
