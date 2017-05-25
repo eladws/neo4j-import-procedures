@@ -5,6 +5,7 @@ import org.apache.tools.ant.DirectoryScanner;
 import org.dragons.neo4j.config.*;
 import org.dragons.neo4j.index.*;
 import org.dragons.neo4j.utils.*;
+import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.logging.Log;
@@ -226,7 +227,9 @@ public class ImportProcedures {
         }
 
         //prepare nodes index fo that group
-        NodesIndexMngr.getNodesIndex().prepareIndex(nic.label);
+        if(NodesIndexMngr.getNodesIndex() != null) {
+            NodesIndexMngr.getNodesIndex().prepareIndex(nic.label);
+        }
 
         String[] files = getMatchingFiles(nic.rootDir, nic.namePattern);
 
