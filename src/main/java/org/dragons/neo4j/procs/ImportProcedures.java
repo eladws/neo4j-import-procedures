@@ -3,9 +3,9 @@ package org.dragons.neo4j.procs;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.tools.ant.DirectoryScanner;
 import org.dragons.neo4j.config.*;
-import org.dragons.neo4j.index.*;
-import org.dragons.neo4j.utils.*;
-import org.neo4j.graphdb.Node;
+import org.dragons.neo4j.index.NodesIndexMngr;
+import org.dragons.neo4j.utils.ThreadPoolService;
+import org.dragons.neo4j.utils.WorkFunctions;
 import org.neo4j.graphdb.Transaction;
 import org.neo4j.kernel.internal.GraphDatabaseAPI;
 import org.neo4j.logging.Log;
@@ -18,7 +18,10 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -334,7 +337,7 @@ public class ImportProcedures {
                         } else {
                             totalEdgesCount++;
                         }
-                        if (opsCount % 10000000 == 0) {
+                        if (opsCount % 1000000 == 0) {
                             log.info("Loaded %d elements of type %s from file %s.", opsCount, config.getBaseImportConfig().label, file);
                             log.info("Total count (approx.): %d nodes, %d edges.", totalNodesCount, totalEdgesCount);
                             log.info("Current rate: %d nodes per second, %d edges per second.",getNodesRate(),getEdgesRate());
@@ -419,6 +422,9 @@ public class ImportProcedures {
     }
 
     private static long getNodesRate() {
+        if(getElapsedTimeSeconds() - getEdgesElapsedTimeSeconds() == 0) {
+            return 0;
+        }
         return totalNodesCount / (getElapsedTimeSeconds() - getEdgesElapsedTimeSeconds());
     }
 

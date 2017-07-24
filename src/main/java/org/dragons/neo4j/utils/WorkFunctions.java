@@ -6,10 +6,7 @@ import org.dragons.neo4j.config.RelationshipBatchWorkConfig;
 import org.dragons.neo4j.config.RelationshipImportConfig;
 import org.dragons.neo4j.index.NodesIndexAPI;
 import org.dragons.neo4j.index.NodesIndexMngr;
-import org.neo4j.graphdb.Label;
-import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Relationship;
-import org.neo4j.graphdb.RelationshipType;
+import org.neo4j.graphdb.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -52,7 +49,7 @@ public class WorkFunctions {
         Node startNode;
 
         Object startIdProperty = config.getPropertiesMap().get("start").equals("int") ? // the property value that identifies the specific node
-                Integer.valueOf(rowTokens[relWorkConf.getStartMatchPropCol()]) :
+                Long.valueOf(rowTokens[relWorkConf.getStartMatchPropCol()]) :
                 rowTokens[relWorkConf.getStartMatchPropCol()];
 
         //first, try to seek internal index
@@ -96,7 +93,7 @@ public class WorkFunctions {
         Node endNode;
 
         Object endIdProperty = config.getPropertiesMap().get("end").equals("int") ?
-                                        Integer.valueOf(rowTokens[relWorkConf.getEndMatchPropCol()]) :
+                                        Long.valueOf(rowTokens[relWorkConf.getEndMatchPropCol()]) :
                                         rowTokens[relWorkConf.getEndMatchPropCol()];
         if (index != null) {
             long id = index.getNodeId(relImportConf.endNodeLabel, endIdProperty);
@@ -143,7 +140,7 @@ public class WorkFunctions {
                 ) {
             if (!propName.equals("start") && !propName.equals("end")) {
                 if (relWorkConf.getPropertiesMap().get(propName).equals("int")) {
-                    rel.setProperty(propName, Integer.valueOf(rowTokens[idx]));
+                    rel.setProperty(propName, Long.valueOf(rowTokens[idx]));
                 } else {
                     rel.setProperty(propName, rowTokens[idx]);
                 }
@@ -169,7 +166,7 @@ public class WorkFunctions {
                 config.getPropertiesMap().keySet()
                 ) {
             if (config.getPropertiesMap().get(propName).equals("int")) {
-                node.setProperty(propName, Integer.valueOf(rowTokens[idx]));
+                node.setProperty(propName, Long.valueOf(rowTokens[idx]));
                 } else {
                 node.setProperty(propName, rowTokens[idx]);
             }
