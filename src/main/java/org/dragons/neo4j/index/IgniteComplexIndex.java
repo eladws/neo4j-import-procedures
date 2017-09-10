@@ -8,21 +8,23 @@ import org.apache.ignite.Ignition;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Created by Elad on 5/11/2017.
- */
-public class IgniteNodesIndex implements NodesIndexAPI {
+public class IgniteComplexIndex implements NodesIndexAPI {
 
+    private String weakToStrongCache = "STRONG_TO_WEAK_STREAMER)";
+    enum NODE_TYPE{STRONG_ID, WEAK_ID};
     Ignite ignite;
+    IgniteDataStreamer<String, Long> strongToWeakStreamer;
     Map<String, IgniteDataStreamer<String, Long>> streamers;
 
-    public IgniteNodesIndex() {
+    public IgniteComplexIndex() {
         ignite = Ignition.start();
         streamers = new HashMap<>();
+        strongToWeakStreamer = ignite.dataStreamer(weakToStrongCache);
+        strongToWeakStreamer.perNodeBufferSize(10000);
     }
 
     @Override
-    public synchronized void prepareIndex(String label) {
+    public void prepareIndex(String label) {
         if(!streamers.containsKey(label)) {
             ignite.getOrCreateCache(label);
             IgniteDataStreamer<String, Long> streamer = ignite.dataStreamer(label);
@@ -31,10 +33,22 @@ public class IgniteNodesIndex implements NodesIndexAPI {
         }
     }
 
+    public void addStrongToWeakMapping(String strongId, long weakId) {
+        strongToWeakStreamer.addData(strongId, weakId);
+    }
+
     @Override
     public void addNodeToIndex(String label, Object idPropertyValue, long id) {
-        //add data to the relevant streamer
+        //add regular id record for this node
         streamers.get(label).addData(idPropertyValue.toString(), id);
+    }
+
+    public long getComplexNodeId(String label, String weakId, String strongIdLabel, String strongId) {
+        //check if id exists in its label's cache
+
+        //check if the strong id exists in the weak2string id
+
+        return 0;
     }
 
     @Override

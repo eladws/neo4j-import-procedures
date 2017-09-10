@@ -202,6 +202,20 @@ public class ImportProcedures {
         log.info("Edges import rate: %d edges per second", getEdgesRate());
     }
 
+
+    @Procedure(mode = Mode.SCHEMA)
+    public void loadGraph(@Name("nodes file") String nodesFilePath,
+                          @Name("edges file") String edgesFile,
+                          @Name("max threads") Long maxThreads) {
+
+        //initialize nodes index
+
+
+        ThreadPoolService nodesThreadsPool = new ThreadPoolService(maxThreads.intValue());
+
+
+    }
+
     private void loadRelsGroup(RelationshipImportConfig ric, int batchSize, ExecutorService executor) {
 
         String[] files = getMatchingFiles(ric.rootDir, ric.namePattern);
